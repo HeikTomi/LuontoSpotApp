@@ -1,5 +1,5 @@
 {
-  "name": "LuontoSpotApp",
+  "name": "luontospotapp",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -10,8 +10,30 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-navigation/elements": "^2.2.6",
+    "@react-navigation/native": "^7.0.15",
+    "@react-navigation/stack": "^7.1.2",
+    "@reduxjs/toolkit": "^2.6.1",
+    "axios": "^1.8.4",
+    "i18next": "^24.2.2",
+    "i18next-browser-languagedetector": "^8.0.4",
     "react": "19.0.0",
-    "react-native": "0.78.0"
+    "react-i18next": "^15.4.1",
+    "react-native": "0.78.0",
+    "react-native-geolocation-service": "^5.3.1",
+    "react-native-gesture-handler": "^2.24.0",
+    "react-native-maps": "^1.20.1",
+    "react-native-paper": "^5.13.1",
+    "react-native-reanimated": "^3.17.1",
+    "react-native-safe-area-context": "^5.3.0",
+    "react-native-screens": "^4.9.1",
+    "react-native-sqlite-storage": "^6.0.1",
+    "react-native-uuid": "^2.0.3",
+    "react-native-vector-icons": "^10.2.0",
+    "react-native-vision-camera": "^4.6.4",
+    "react-redux": "^9.2.0",
+    "redux": "^5.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
