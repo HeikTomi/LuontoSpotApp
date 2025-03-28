@@ -1,0 +1,13 @@
+{
+    "welcome": "Welcome to the {{appName}}!",
+    "appName": "Photo Note Manager",
+    "placeholderTitle": "Enter title",
+    "placeholderNote": "Enter note",
+    "buttonAddNote": "Add Photo Note",
+    "noImageText": "No image yet.",
+    "deleteTitle": "Delete Photo Note",
+    "deleteText": "Are you sure you want to delete this Photo Note?",
+    "camera": "Photo Note Camera",
+    "alertEmptyTitle": "Title cannot be empty",
+    "noPhotoNotes": "No Photo Notes found"
+}

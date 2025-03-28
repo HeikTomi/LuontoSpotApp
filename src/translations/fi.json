@@ -1,0 +1,13 @@
+{
+    "welcome": "Tervetuloa sovellukseen {{appName}}",
+    "appName": "Photo Note Muistio",
+    "placeholderTitle": "Anna otsikko",
+    "placeholderNote": "Anna muistiinpano",
+    "buttonAddNote": "Lisää uusi Photo Note",
+    "noImageText": "Ei lisättyä kuvaa.",
+    "deleteTitle": "Poista Photo Note",
+    "deleteText": "Oletko varma, että haluat poistaa tämän Photo Noten?",
+    "camera": "Photo Note Kamera",
+    "alertEmptyTitle": "Otsikko ei voi olla tyhjä!",
+    "noPhotoNotes": "Ei vielä Photo Noteja"
+}
