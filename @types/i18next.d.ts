@@ -7,7 +7,6 @@ declare module 'i18next' {
       translation: {
         welcome: string;
         goodbye: string;
-        appName: string;
         placeholderTitle: string;
         placeholderNote: string;
         buttonAddNote: string;
@@ -17,6 +16,30 @@ declare module 'i18next' {
         camera: string;
         alertEmptyTitle: string;
         noPhotoNotes: string;
+        register: string;
+        registerText: string;
+        login: string;
+        logout: string;
+        skipLogin: string;
+        loginWithGoogle: string;
+        loginWithFacebook: string;
+        loginWithApple: string;
+        loginWithEmail: string;
+        email: string;
+        password: string;
+        confirmPassword: string;
+        forgotPassword: string;
+        resetPassword: string;
+        resetPasswordText: string;
+        slogan: string;
+        notes: string;
+        addNote: string;
+        editNote: string;
+        deleteNote: string;
+        save: string;
+        cancel: string;
+        settings: string;
+        map: string;
       };
     };
   }

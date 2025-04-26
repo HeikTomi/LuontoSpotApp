@@ -1,5 +1,5 @@
 import SQLite from 'react-native-sqlite-storage';
-import { LuontoSpotSchema } from './schema';
+import { CREATE_TABLE_LOCATIONS, CREATE_TABLE_NOTES } from './schema';
 
 let db: SQLite.SQLiteDatabase;
 
@@ -16,11 +16,20 @@ export const initializeDatabase = async (): Promise<void> => {
     return new Promise<void>((resolve, reject) => {
         db.transaction((tx) => {
             tx.executeSql(
-                LuontoSpotSchema, // Käytetään schemaa taulun luomiseen
+                CREATE_TABLE_LOCATIONS, // Käytetään schemaa taulun luomiseen
                 [],
                 () => resolve(),
                 (_, error) => reject(error)
             );
+            tx.executeSql(
+                CREATE_TABLE_NOTES, // Käytetään schemaa taulun luomiseen
+                [],
+                () => resolve(),
+                (_, error) => reject(error)
+            );
+        }, (error) => {
+            console.error('Transaction error:', error);
+            reject(error);
         });
     });
 };

@@ -1,5 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
-import { PhotoNoteManagerRouteProp} from '../../../App';
+import React, { useEffect, useCallback, useState } from 'react';
 import { StyleSheet, FlatList, Alert, Image, View, TextInput } from 'react-native';
 import { Surface, TextInput as PaperTextInput, Text, TouchableRipple, Modal, Button, IconButton } from 'react-native-paper';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -7,7 +6,6 @@ import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/userAppSelector';
 import { initializeDb, addItem, fetchItems, updatePhoto, deleteItem, updateItem } from './sqliteSlice';
 import {
-    setTitle,
     setNote,
     setSelectedPhotoUrl,
     setModalVisible,
@@ -18,14 +16,24 @@ import {
     setSelectedPhotoId,
 } from './photoNoteSlice';
 import { useTranslation } from 'react-i18next';
-import flags from 'emoji-flags';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../../App';
 
-export const PhotoNoteManager: React.FC<PhotoNoteManagerRouteProp> = ({ navigation }) => {
-    const { t, i18n } = useTranslation();
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PhotoNoteManager'>;
+type PhotoNoteManagerRouteProp = RouteProp<RootStackParamList, 'PhotoNoteManager'>;
 
+export const PhotoNoteManager: React.FC = () => {
+    const route = useRoute<PhotoNoteManagerRouteProp>();
+    const { prefilledTitle } = route.params || {};
+
+    const [title, setTitle] = useState(prefilledTitle || '');
+
+    const { t } = useTranslation();
     const dispatch = useAppDispatch();
+    const navigation = useNavigation<NavigationProp>();
+
     const items = useAppSelector((state) => state.sqlite.items);
-    const title = useAppSelector((state) => state.photoNote.title);
     const note = useAppSelector((state) => state.photoNote.note);
     const modalVisible = useAppSelector((state) => state.photoNote.modalVisible);
     const noteModalVisible = useAppSelector((state) => state.photoNote.noteModalVisible);
@@ -52,6 +60,7 @@ export const PhotoNoteManager: React.FC<PhotoNoteManagerRouteProp> = ({ navigati
             return;
         }
 
+        // TODO: poista quantity. Kohde on jo ja tagin tyyppi.. linkitä siihen note
         const newPhotoNote = {
             name: title, // SQLite käyttää tässä "name"-kenttää
             quantity: 1, // Placeholder kenttä
@@ -62,7 +71,7 @@ export const PhotoNoteManager: React.FC<PhotoNoteManagerRouteProp> = ({ navigati
 
         dispatch(addItem(newPhotoNote))
             .then(() => {
-                dispatch(setTitle(''));
+                setTitle('');
                 dispatch(setNote(''));
                 loadItems();
             })
@@ -141,22 +150,14 @@ export const PhotoNoteManager: React.FC<PhotoNoteManagerRouteProp> = ({ navigati
 
     return (
         <Surface style={styles.container}>
-            <View style={styles.buttonContainer}>
-                <TouchableRipple onPress={() => i18n.changeLanguage('fi')} style={styles.flagButton}>
-                    <Text style={styles.flag}>{flags.FI.emoji}</Text>
-                </TouchableRipple>
-                <TouchableRipple onPress={() => i18n.changeLanguage('en')} style={styles.flagButton}>
-                    <Text style={styles.flag}>{flags.GB.emoji}</Text>
-                </TouchableRipple>
-            </View>
             <PaperTextInput
-                style={styles.input}
+                style={[styles.input, styles.greenBackground]} // Lisätty vihreä taustaväri
                 placeholder={t('placeholderTitle')}
                 value={title}
-                onChangeText={(text) => dispatch(setTitle(text))}
+                onChangeText={(text) => setTitle(text)}
             />
             <TextInput
-                style={styles.textArea}
+                style={[styles.textArea, styles.greenBackground]} // Lisätty vihreä taustaväri
                 placeholder={t('placeholderNote')}
                 value={note}
                 onChangeText={(text) => dispatch(setNote(text))}
@@ -272,6 +273,9 @@ const styles = StyleSheet.create({
         padding: 10,
         marginBottom: 10,
     },
+    greenBackground: {
+        backgroundColor: '#E8F5E9', // Vaaleanvihreä taustaväri
+    },
     textArea: {
         borderWidth: 1,
         borderColor: '#ccc',
@@ -284,6 +288,7 @@ const styles = StyleSheet.create({
     },
     button: {
         marginBottom: 20,
+        backgroundColor: '#4CAF50', // Vihreä teema
     },
     listItem: {
         flexDirection: 'row',
@@ -305,25 +310,14 @@ const styles = StyleSheet.create({
     iconButton: {
         marginHorizontal: 5, // Lisää vaakasuora marginaali
     },
-    flagButton: {
-        marginHorizontal: 2,
-    },
-    flag: {
-        fontSize: 24,
-    },
     modalContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
-    modalOverlay: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     modalContent: {
-        width: '90%',
+        width: '100%',
         backgroundColor: 'white',
         padding: 20,
         borderRadius: 10,
@@ -351,9 +345,8 @@ const styles = StyleSheet.create({
     modalButton: {
         flex: 1,
         marginHorizontal: 5,
-    },
-    buttonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
+        backgroundColor: '#4CAF50', // Vihreä teema myös modaalin painikkeille
     },
 });
+
+export default PhotoNoteManager;

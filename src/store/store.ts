@@ -5,6 +5,7 @@ import { configureStore } from '@reduxjs/toolkit';
 // Esimerkiksi:
 import sqliteReducer from '../features/notes/sqliteSlice';
 import photoNoteReducer from '../features/notes/photoNoteSlice';
+import locationReducer from '../features/map/locationSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     // Esimerkiksi:
     sqlite: sqliteReducer,
     photoNote: photoNoteReducer,
+    location: locationReducer,
   },
 });
 

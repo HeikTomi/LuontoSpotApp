@@ -2,26 +2,28 @@ import { t } from 'i18next';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 
-export const LoginScreen: React.FC = () => {
-    const [isLoggingIn, setIsLoggingIn] = useState(false);
+export const RegisterScreen: React.FC = () => {
+    const [isRegistering, setIsRegistering] = useState(false);
 
-    const handleLogin = () => {
-        setIsLoggingIn(true);
+    const handleRegister = () => {
+        setIsRegistering(true);
 
-        // Simuloi kirjautumisprosessia
+        // Simuloi rekisteröintiprosessia
         setTimeout(() => {
-            setIsLoggingIn(false);
-            Alert.alert('Login Successful', 'You have successfully logged in!');
+            setIsRegistering(false);
+            Alert.alert('Registration Successful', 'You have successfully registered!');
         }, 2000); // Mockattu viive
+        // TODO: Navigoi karttanäkymään tai muuhun näkymään rekisteröinnin jälkeen
+        // navigation.navigate('MapScreen'); // Esimerkki navigoinnista karttanäkymään
     };
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>{t('login')}</Text>
-            <Text style={styles.subtitle}>Simulate OAuth2 Login</Text>
+            <Text style={styles.title}>{t('register')}</Text>
+            <Text style={styles.subtitle}>Simulate OAuth2 Registration</Text>
 
-            <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isLoggingIn}>
-                <Text style={styles.buttonText}>{isLoggingIn ? 'Logging in...' : 'Login with OAuth2'}</Text>
+            <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={isRegistering}>
+                <Text style={styles.buttonText}>{isRegistering ? 'Registering...' : 'Register with OAuth2'}</Text>
             </TouchableOpacity>
         </View>
     );

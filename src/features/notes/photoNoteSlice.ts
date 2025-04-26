@@ -8,7 +8,13 @@ interface PhotoNoteState {
     selectedPhotoUrl: string | null;
     selectedPhotoTitle: string | null;
     selectedPhotoNote: string | null;
-    selectedPhotoId: number | null; // Lisää tämä
+    selectedPhotoId: number | null;
+    location: {
+        latitude: number;
+        longitude: number;
+        tagType: string;
+    } | null; // Sijaintitiedot
+
 }
 
 const initialState: PhotoNoteState = {
@@ -19,7 +25,8 @@ const initialState: PhotoNoteState = {
     selectedPhotoUrl: null,
     selectedPhotoTitle: null,
     selectedPhotoNote: null,
-    selectedPhotoId: null, // Lisää tämä
+    selectedPhotoId: null,
+    location: null,
 };
 
 const photoNoteSlice = createSlice({
