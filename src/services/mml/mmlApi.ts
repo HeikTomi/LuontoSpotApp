@@ -39,7 +39,12 @@ export const fetchTileImage = async (latitude: number, longitude: number, zoomLe
         };
 
         // Lataa kuva ja tallenna se paikallisesti
-        const localPath = `${RNFS.DocumentDirectoryPath}/tile_${tileX}_${tileY}.png`;
+        const localPath = `${RNFS.DocumentDirectoryPath}/tile_${tileX}_${tileY}_${zoomLevel}.png`;
+        const exists = await RNFS.exists(localPath);
+        if (exists) {
+            console.log('Tile found in cache:', localPath);
+            return `file://${localPath}`;
+        }
         console.log('Saving tile to:', localPath); // Debug tallennuspolku
 
         const response = await RNFS.downloadFile({

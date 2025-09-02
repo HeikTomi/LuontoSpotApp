@@ -1,4 +1,7 @@
 {
+    "addNoteTitle": "Add note",
+    "noteTitlePlaceholder": "Title...",
+        "noteContentPlaceholder": "Note content...",
     "welcome": "Welcome to LuontoSpot!",
     "placeholderTitle": "Location title",
     "placeholderNote": "Enter note",
@@ -13,7 +16,7 @@
     "registerText": "Register and log in",
     "login": "Login",
     "logout": "Logout",
-    "skipLogin": "Skip login",
+    "skipLogin": "Enter",
     "loginWithGoogle": "Login with Google",
     "loginWithFacebook": "Login with Facebook",
     "loginWithApple": "Login with Apple",
@@ -24,11 +27,17 @@
     "forgotPassword": "Forgot your password?",
     "resetPassword": "Reset Password",
     "resetPasswordText": "Enter your email address and we will send you a password reset link.",
-    "slogan": "Find and share the beauty of nature",
+    "slogan": "Find the beauty of nature",
     "notes": "Notes",
     "addNote": "Add Note",
     "editNote": "Edit Note",
     "deleteNote": "Delete Note",
-    "map": "Map"
+    "map": "Map",
+    "settingsTitle": "Settings",
+    "aboutTitle": "About the app",
+    "aboutDescription": "LuontoSpot is a mobile app for discovering nature spots and saving notes. You can add your own observations, photos, and notes easily.",
+    "contactEmail": "Contact",
+    "language": "Language",
+    "mapFilters": "Map filters"
 
 }

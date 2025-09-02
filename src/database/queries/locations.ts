@@ -1,15 +1,13 @@
 import { getDatabase } from '../index';
 
 export const insertLocation = async ({
-    title,
-    locationId = null, // Oletusarvo NULL
+    noteId = null, // Oletusarvo NULL
     latitude,
     longitude,
     tagType,
     ownership,
 }: {
-    title: string;
-    locationId?: number | null; // Salli NULL-arvo
+    noteId?: number | null; // Salli NULL-arvo
     latitude: number;
     longitude: number;
     tagType: string;
@@ -19,9 +17,9 @@ export const insertLocation = async ({
     return new Promise<number>((resolve, reject) => {
         db.transaction((tx) => {
             tx.executeSql(
-                `INSERT INTO Locations (title, locationId, latitude, longitude, tagType, ownership) 
-                 VALUES (?, ?, ?, ?, ?, ?);`,
-                [title, locationId, latitude, longitude, tagType, ownership],
+                `INSERT INTO Locations (noteId, latitude, longitude, tagType, ownership) 
+                 VALUES (?, ?, ?, ?, ?);`,
+                [noteId, latitude, longitude, tagType, ownership],
                 (_, result) => resolve(result.insertId), // Palauta tallennetun rivin ID
                 (_, error) => reject(error) // Käsittele virhe
             );
@@ -29,13 +27,13 @@ export const insertLocation = async ({
     });
 };
 
-export const updateLocation = async (id: number, locationId: number) => {
+export const updateLocation = async (id: number, noteId: number) => {
     const db = await getDatabase();
     return new Promise<void>((resolve, reject) => {
         db.transaction((tx) => {
             tx.executeSql(
-                'UPDATE Locations SET locationId = ? WHERE id = ?;',
-                [locationId, id],
+                `UPDATE Locations SET noteId = ? WHERE id = ?;`,
+                [noteId, id],
                 () => resolve(),
                 (_, error) => reject(error)
             );

@@ -5,26 +5,35 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 const Compass: React.FC = () => {
     const [heading, setHeading] = useState(0);
+    const [prevHeading, setPrevHeading] = useState(0);
     const animatedValue = React.useMemo(() => new Animated.Value(0), []);
 
     useEffect(() => {
         const degreeUpdateRate = 3; // Päivitysnopeus (asteina)
         CompassHeading.start(degreeUpdateRate, (data: any) => {
-            setHeading(data.heading); // Päivitä suunta
+            setHeading((old) => {
+                setPrevHeading(old);
+                return data.heading;
+            });
         });
-
         return () => {
-            CompassHeading.stop(); // Lopeta kompassin seuranta komponentin poistuessa
+            CompassHeading.stop();
         };
     }, []);
 
     useEffect(() => {
+        let delta = heading - prevHeading;
+        if (delta > 180) { delta -= 360; }
+        if (delta < -180) { delta += 360; }
+        const nextValue = prevHeading + delta;
+        animatedValue.setValue(prevHeading);
         Animated.timing(animatedValue, {
-            toValue: heading,
+            toValue: nextValue,
             duration: 300,
             useNativeDriver: true,
         }).start();
-    }, [animatedValue, heading]);
+        setPrevHeading(nextValue % 360);
+    }, [animatedValue, heading, prevHeading]);
 
     const rotate = animatedValue.interpolate({
         inputRange: [0, 360],
@@ -33,25 +42,17 @@ const Compass: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            <Animated.View
-                style={[
-                    styles.compassContainer,
-                    {
-                        transform: [{ rotate }], // Pyöritetään koko kompassia
-                    },
-                ]}
-            >
-                {/* Ilmansuunnat */}
+            <View style={styles.compassContainer}>
+                {/* Ilmansuunnat pysyvät paikoillaan */}
                 <Text style={[styles.direction, styles.north]}>N</Text>
                 <Text style={[styles.direction, styles.south]}>S</Text>
                 <Text style={[styles.direction, styles.east]}>E</Text>
                 <Text style={[styles.direction, styles.west]}>W</Text>
-
-                {/* Nuoli */}
-                <View style={styles.iconContainer}>
+                {/* Nuoli pyörii menosuunnan mukaan */}
+                <Animated.View style={[styles.iconContainer, { transform: [{ rotate }] }]}> 
                     <MaterialCommunityIcons name="navigation" size={30} color="#4CAF50" />
-                </View>
-            </Animated.View>
+                </Animated.View>
+            </View>
         </View>
     );
 };

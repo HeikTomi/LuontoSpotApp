@@ -1,4 +1,7 @@
 {
+    "addNoteTitle": "Lisää muistiinpano",
+    "noteTitlePlaceholder": "Otsikko...",
+        "noteContentPlaceholder": "Muistiinpanon sisältö...",
     "welcome": "Tervetuloa LuontoSpottiin!",
     "placeholderTitle": "Nimeä kohde",
     "placeholderNote": "Anna muistiinpano",
@@ -13,7 +16,7 @@
     "registerText": "Rekisteröidy ja kirjaudu sisään",
     "login": "Kirjaudu",
     "logout": "Kirjaudu ulos",
-    "skipLogin": "Ohita",
+    "skipLogin": "Astu sisään",
     "loginWithGoogle": "Kirjaudu Googlella",
     "loginWithFacebook": "Kirjaudu Facebook:lla",
     "loginWithApple": "Kirjaudu Apple:lla",
@@ -24,10 +27,16 @@
     "forgotPassword": "Unohditko salasanasi?",
     "resetPassword": "Nollaa salasana",
     "resetPasswordText": "Syötä sähköpostiosoitteesi, niin lähetämme sinulle salasanan nollauslinkin.",
-    "slogan": "Löydä ja jaa luonnon kauneus",
+    "slogan": "Löydä luonnon kauneus",
     "notes": "Muistio",
     "addNote": "Lisää muistiinpano",
     "editNote": "Muokkaa muistiinpanoa",
     "deleteNote": "Poista muistiinpano",
-    "map": "Maastokartta"
+    "map": "Maastokartta",
+    "settingsTitle": "Asetukset",
+    "aboutTitle": "Tietoa sovelluksesta",
+    "aboutDescription": "LuontoSpot on mobiilisovellus luonnon kohteiden löytämiseen ja muistiinpanojen tallentamiseen. Voit lisätä omia havaintojasi, valokuvia ja muistiinpanoja helposti.",
+    "contactEmail": "Ota yhteyttä",
+    "language": "Kieli",
+    "mapFilters": "Karttasuodattimet"
 }

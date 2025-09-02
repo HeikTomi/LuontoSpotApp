@@ -8,6 +8,7 @@ import { View, StyleSheet } from 'react-native';
 export const AuthenticationScreen: React.FC = () => {
     const navigation = useNavigation<AuthenticationScreenNavigationProp>();
 
+    /* TODO: Tulevaisuuden autentikointiin valmiiksi
     const handleRegister = () => {
         navigation.navigate('Register'); // Navigoi rekisteröintinäkymään
     };
@@ -15,6 +16,7 @@ export const AuthenticationScreen: React.FC = () => {
     const handleLogin = () => {
         navigation.navigate('Login'); // Navigoi kirjautumisnäkymään
     };
+    */
 
     const handleSkip = () => {
         navigation.navigate('Drawer'); // Navigoi Drawer-navigaattoriin
@@ -29,8 +31,8 @@ export const AuthenticationScreen: React.FC = () => {
 
             {/* Authentication-komponentti */}
             <Authentication
-                onRegister={handleRegister}
-                onLogin={handleLogin}
+                //onRegister={handleRegister}
+                //onLogin={handleLogin}
                 onSkip={handleSkip}
             />
         </View>

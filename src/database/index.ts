@@ -1,5 +1,29 @@
+import { DELETE_TABLE_LOCATIONS, CREATE_TABLE_LOCATIONS } from './schema';
+
+export const resetLocationsTable = async (): Promise<void> => {
+    const db = await getDatabase();
+    return new Promise<void>((resolve, reject) => {
+        db.transaction((tx) => {
+            tx.executeSql(DELETE_TABLE_LOCATIONS, [], () => {
+                tx.executeSql(CREATE_TABLE_LOCATIONS, [], () => resolve(), (_, error) => reject(error));
+            }, (_, error) => reject(error));
+        });
+    });
+};
+import { DELETE_TABLE_PHOTO_NOTES, CREATE_TABLE_NOTES } from './schema';
+
+export const resetPhotoNotesTable = async (): Promise<void> => {
+    const db = await getDatabase();
+    return new Promise<void>((resolve, reject) => {
+        db.transaction((tx) => {
+            tx.executeSql(DELETE_TABLE_PHOTO_NOTES, [], () => {
+                tx.executeSql(CREATE_TABLE_NOTES, [], () => resolve(), (_, error) => reject(error));
+            }, (_, error) => reject(error));
+        });
+    });
+};
 import SQLite from 'react-native-sqlite-storage';
-import { CREATE_TABLE_LOCATIONS, CREATE_TABLE_NOTES } from './schema';
+// import { CREATE_TABLE_LOCATIONS } from './schema';
 
 let db: SQLite.SQLiteDatabase;
 
@@ -15,6 +39,12 @@ export const initializeDatabase = async (): Promise<void> => {
     const db = await getDatabase();
     return new Promise<void>((resolve, reject) => {
         db.transaction((tx) => {
+            /*tx.executeSql(
+                DELETE_TABLE_PHOTO_NOTES,
+                [],
+                () => resolve(),
+                (_, error) => reject(error)
+            ); */
             tx.executeSql(
                 CREATE_TABLE_LOCATIONS, // Käytetään schemaa taulun luomiseen
                 [],

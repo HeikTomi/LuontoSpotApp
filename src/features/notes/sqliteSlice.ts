@@ -14,18 +14,18 @@ export const initializeDb = createAsyncThunk('sqlite/initializeDatabase', async 
 
 export const addItem = createAsyncThunk('sqlite/addItem', async (item: any) => {
     console.log('addItem called with:', item); // Logi lisäyksen alussa
-    await addNote(item);
-    console.log('addItem completed for:', item); // Logi lisäyksen jälkeen
-    return item;
+    const insertId = await addNote(item);
+    console.log('addItem completed for:', item, 'insertId:', insertId); // Logi lisäyksen jälkeen
+    return { ...item, id: insertId };
 });
 
 export const fetchItems = createAsyncThunk('sqlite/fetchItems', async () => {
     return await fetchNotes();
 });
 
-export const updateItem = createAsyncThunk('sqlite/updateItem', async ({ id, note }: { id: number; note: string }) => {
-    await updateNote(id, note);
-    return { id, note };
+export const updateItem = createAsyncThunk('sqlite/updateItem', async ({ id, note, name }: { id: number; note: string; name: string }) => {
+    await updateNote(id, note, name);
+    return { id, note, name };
 });
 
 export const updatePhoto = createAsyncThunk('sqlite/updatePhotoUrl', async ({ id, photoUrl }: { id: number; photoUrl: string }) => {
@@ -44,7 +44,11 @@ const sqliteSlice = createSlice({
         error: null,
         items: [],
     } as SqliteState,
-    reducers: {},
+    reducers: {
+        clearNotes: (state) => {
+            state.items = [];
+        },
+    },
     extraReducers: (builder) => {
         builder
             .addCase(fetchItems.fulfilled, (state, action) => {
@@ -65,5 +69,5 @@ const sqliteSlice = createSlice({
             });
     },
 });
-
+export const { clearNotes } = sqliteSlice.actions;
 export default sqliteSlice.reducer;

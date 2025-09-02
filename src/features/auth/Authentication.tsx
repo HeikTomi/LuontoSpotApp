@@ -1,30 +1,61 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, useColorScheme  } from 'react-native';
 import { useTranslation } from 'react-i18next';
 interface AuthenticationProps {
-    onRegister: () => void;
-    onLogin: () => void;
+    //onRegister: () => void;
+    //onLogin: () => void;
     onSkip: () => void;
 }
 
-export const Authentication: React.FC<AuthenticationProps> = ({ onRegister, onLogin, onSkip }) => {
+export const Authentication: React.FC<AuthenticationProps> = ({ onSkip }) => {
     const { t } = useTranslation(); // Käytä useTranslation-hookia
+    const colorScheme = useColorScheme();
+    const isDarkMode = colorScheme === 'dark';
+
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const counterRef = useRef(0);
+
+    useEffect(() => {
+        intervalRef.current = setInterval(() => {
+        counterRef.current += 1;
+        console.log('Counter:', counterRef.current);
+        if (counterRef.current >= 5) {
+            counterRef.current = 0;
+            if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            }
+            console.log('Auto-skip after 5 seconds');
+            onSkip();
+        }
+        }, 1000);
+
+        return () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+        }
+        };
+    }, [onSkip]);
+
     return (
         <View style={styles.container}>
             {/* Taustakuva */}
-            <Image source={require('../../assets/images/background.jpg')} style={styles.backgroundImage} />
+            {isDarkMode ? (
+                <Image source={require('../../assets/images/background_darkmode.jpg')} style={styles.backgroundImage} />
+            ) : (
+                <Image source={require('../../assets/images/background.jpg')} style={styles.backgroundImage} />
+            )}
 
             {/* Sisältö */}
             <View style={styles.content}>
                 <Text style={styles.title}>{t('welcome')}</Text>
                 <Text style={styles.subtitle}>{t('slogan')}</Text>
 
-                {/* Rekisteröinti-painike */}
+                {/* Rekisteröinti-painike
                 <TouchableOpacity style={styles.button} onPress={onRegister}>
                     <Text style={styles.buttonText}>{t('register')}</Text>
                 </TouchableOpacity>
 
-                {/* Kirjautuminen-painike */}
+                {/* Kirjautuminen-painike
                 <TouchableOpacity style={styles.button} onPress={onLogin}>
                     <Text style={styles.buttonText}>{t('login')}</Text>
                 </TouchableOpacity>

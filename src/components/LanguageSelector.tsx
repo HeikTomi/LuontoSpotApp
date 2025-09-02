@@ -25,6 +25,9 @@ export const LanguageSelector: React.FC = () => {
             <TouchableRipple onPress={() => changeLanguage('fi')} style={styles.flagButton}>
                 <Text style={styles.flag}>{flags.FI.emoji}</Text>
             </TouchableRipple>
+            <TouchableRipple onPress={() => changeLanguage('sv')} style={styles.flagButton}>
+                <Text style={styles.flag}>{flags.SE.emoji}</Text>
+            </TouchableRipple>
             <TouchableRipple onPress={() => changeLanguage('en')} style={styles.flagButton}>
                 <Text style={styles.flag}>{flags.GB.emoji}</Text>
             </TouchableRipple>

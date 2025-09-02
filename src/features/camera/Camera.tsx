@@ -4,6 +4,8 @@ import { Camera, PhotoFile, useCameraDevice } from 'react-native-vision-camera';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { CameraScreenRouteProp, RootStackParamList } from '../../../App';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useDispatch } from 'react-redux';
+import { updatePhoto, fetchItems } from '../notes/sqliteSlice';
 
 type CameraScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Camera'>;
 
@@ -54,7 +56,7 @@ export const CameraComponent: React.FC<CameraProps> = ({ onTakePhoto }) => {
 };
 
 export const CameraScreen: React.FC<CameraScreenProps> = ({ navigation, route }) => {
-  const { id, onPhotoTaken } = route.params;
+  const { id } = route.params;
 
   // Check if the camera is available and request permissions
   console.log(id);
@@ -67,11 +69,14 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ navigation, route })
     requestCameraPermission().catch((error) => console.warn(error.message));
   }, []);
 
-  const handleTakePhoto = (photoUrl: string) => {
-    // Call the callback with the captured photo URL
-    onPhotoTaken(photoUrl);
-
-    // Navigate back to the previous screen
+  // Käytetään AppDispatch-tyyppiä, jotta thunkit toimivat oikein
+  // @ts-ignore
+  const dispatch: any = useDispatch();
+  const handleTakePhoto = async (photoUrl: string) => {
+    // Tallennetaan kuva kantaan oikeaan noteen ja päivitetään store
+    console.log("Kuva otettu:", photoUrl);
+    await dispatch(updatePhoto({ id, photoUrl }));
+    await dispatch(fetchItems());
     navigation.goBack();
   };
 
