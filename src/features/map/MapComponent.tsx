@@ -1,11 +1,8 @@
-import NetInfo from '@react-native-community/netinfo';
 import React, { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, StyleSheet, Image, ActivityIndicator, Alert, useColorScheme, TouchableOpacity, Text, TextInput } from 'react-native';
 import ImageZoom from 'react-native-image-pan-zoom';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { gyroscope } from 'react-native-sensors';
-import setUpdateInterval from 'react-native-sensors';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
 import { AppDispatch } from '../../store/store';
@@ -18,7 +15,6 @@ import { fetchItems } from '../notes/sqliteSlice';
 import { useAppSelector } from '../../hooks/userAppSelector';
 import { fetchTileImage } from '../../services/mml/mmlApi';
 import { useTranslation } from 'react-i18next';
-import { updateLocation } from './locationSlice';
 import { useNavigation } from '@react-navigation/native';
 import { updateItem } from '../notes/sqliteSlice';
 
@@ -77,22 +73,26 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
         }
         fetchLocationsAndSet();
     }, [dispatch]);
-    
+
     // Gyroskoopin menosuunta
     const [yaw, setYaw] = useState(0);
     useEffect(() => {
-        const subscription = gyroscope.subscribe(({ x, y, z }) => {
+        const subscription = gyroscope.subscribe(({ z }) => {
             const yawDeg = z * (180 / Math.PI);
             setYaw(yawDeg);
+            // Debug: log yaw and heading to console
+            console.log(`Yaw: ${yawDeg.toFixed(1)}°, Heading: ${location?.heading != null ? location.heading.toFixed(1) : 'N/A'}°`);
         });
         return () => subscription.unsubscribe();
-    }, []);
-    // Muokkausmodaalin edit-tilat poistettu, ei tarvetta
+    }, [location]);
+
     const notes = useAppSelector((state) => state.sqlite.items);
+
     // Haetaan muistiinpanot vain kerran mountissa
     useEffect(() => {
         dispatch({ type: 'sqlite/fetchItems' });
     }, [dispatch]);
+
     const { t } = useTranslation();
     const [noteTitle, setNoteTitle] = useState('');
     const [noteModalVisible, setNoteModalVisible] = useState(false);
@@ -195,14 +195,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
     dispatch(deleteLocationDb(loc.id));
     setActiveMarkerId(null);
     };
-    // Headingin re-render pakotus
-    const [currentHeading, setCurrentHeading] = useState<number>(location?.heading || 0);
-
-    useEffect(() => {
-        if (autoFollowOnStart && mapLocation && typeof mapLocation.heading === 'number') {
-            setCurrentHeading(mapLocation.heading);
-        }
-    }, [mapLocation, mapLocation?.heading, autoFollowOnStart]);
+    // Headingin re-render pakotus poistettu, käytetään suoraan location.heading ja yaw
     const [tileImage, setTileImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [tileIndices, setTileIndices] = useState<{ tileX: number; tileY: number } | null>(null);
@@ -302,9 +295,9 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
             }
             // Muussa tapauksessa filtteröi tagType
             if (filters) {
-                if (loc.tagType === 'Sieni' && !filters.mushroom) return false;
-                if (loc.tagType === 'Marja' && !filters.berry) return false;
-                if (loc.tagType === 'Mielenkiinto' && !filters.star) return false;
+                if (loc.tagType === 'Sieni' && !filters.mushroom) { return false; }
+                if (loc.tagType === 'Marja' && !filters.berry) { return false; }
+                if (loc.tagType === 'Mielenkiinto' && !filters.star) { return false; }
             }
             return tileX === tileIndices.tileX && tileY === tileIndices.tileY;
         });

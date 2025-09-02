@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { MAP_FILTER_KEY } from '../features/settings/MapFilterToggle';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, StyleSheet, Alert, useColorScheme, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, Alert, useColorScheme, TouchableOpacity } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
@@ -18,13 +18,19 @@ import { insertLocation } from '../database/queries/locations';
 
 export const MapScreen: React.FC<{ autoFollowOnStart?: boolean }> = ({ autoFollowOnStart }) => {
     // Tallennetaan notesista tullut location, jos sellainen on
+    const route = useRoute<RouteProp<RootStackParamList, 'Map'>>();
     const [pendingNoteLocation, setPendingNoteLocation] = useState<{ latitude: number; longitude: number; heading: number | null } | null>(null);
     // Hae käyttäjän sijainti kerran mountissa, jotta kartta saa locationin
     // Jos tullaan notesista, location-parametri asetetaan, muuten haetaan käyttäjän sijainti
     useEffect(() => {
         (async () => {
             const locationFromMap = await AsyncStorage.getItem('locationFromMap');
-            if (locationFromMap === 'true' && route.params?.location) {
+            if (
+                locationFromMap === 'true' &&
+                route &&
+                route.params &&
+                route.params.location
+            ) {
                 setLocation(route.params.location);
                 console.log('Initial location set from notes:', route.params.location);
             } else {
@@ -41,8 +47,7 @@ export const MapScreen: React.FC<{ autoFollowOnStart?: boolean }> = ({ autoFollo
                 );
             }
         })();
-    }, []);
-    const route = useRoute<RouteProp<RootStackParamList, 'Map'>>();
+    }, [route]);
     // Seuranta-tila drawerin focus-eventille
     // Auto-follow on aina pois päältä kun Map-näkymä avataan
     const [isAutoFollow, setIsAutoFollow] = useState(false);
@@ -141,7 +146,12 @@ export const MapScreen: React.FC<{ autoFollowOnStart?: boolean }> = ({ autoFollo
         React.useCallback(() => {
             (async () => {
                 const locationFromMap = await AsyncStorage.getItem('locationFromMap');
-                if (locationFromMap === 'true' && route.params?.location) {
+                if (
+                    locationFromMap === 'true' &&
+                    route &&
+                    route.params &&
+                    route.params.location
+                ) {
                     setPendingNoteLocation(route.params.location);
                     setLocation(route.params.location);
                     navigation.setParams({ location: undefined });
@@ -152,7 +162,7 @@ export const MapScreen: React.FC<{ autoFollowOnStart?: boolean }> = ({ autoFollo
                     console.log('Drawer focus: auto-follow palautettu käyttäjän valintaan (drawer navigation)', lastAutoFollow);
                 }
             })();
-        }, [lastAutoFollow, route.params?.location])
+    }, [lastAutoFollow, route, navigation])
     );
     const [location, setLocation] = useState<{ latitude: number; longitude: number; heading: number | null } | null>(null);
     const dispatch = useDispatch();
@@ -234,8 +244,6 @@ export const MapScreen: React.FC<{ autoFollowOnStart?: boolean }> = ({ autoFollo
                 })
             );
 
-            // Ilmoita onnistumisesta
-            Alert.alert('Success', `Location saved with tag: ${type}`);
         } catch (error) {
             console.error('Error saving location:', error);
             Alert.alert('Error', 'Failed to save location.');
