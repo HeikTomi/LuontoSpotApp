@@ -40,6 +40,21 @@ interface MapComponentProps {
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFollowOnStart, filters }) => {
+    // TODO: Puheentunnistus noten syöttöön
+    // - Ensimmäinen sana puheesta otsikoksi, loput muistioksi
+    // - Käytä esim. react-native-voice
+    // - Kielet: suomi, ruotsi, englanti
+
+    // TODO: Lisää infopainike kartan vasemmalle puolelle
+    // Painikkeesta avautuu ohje, joka kertoo:
+    // - Indikaattorien (esim. GPS, online/offline, kompassi) toiminnan
+    // - Filttereiden (sieni, marja, tähti) käytön
+    // - Autofollow-tilan merkityksen ja käytön
+
+    // TODO: Esteettömyys ja väri kontrasti
+    // - Lisää accessibilityLabel kaikille interaktiivisille elementeille
+    // - Tarkista värikontrastit (WCAG-standardit)
+    // - Testaa VoiceOver/ScreenReader-tuki
     // Käytetään vain autoFollowOnStart-propseja, ei omaa tilaa
     useEffect(() => {
         console.log('MapComponent render: autoFollowOnStart =', autoFollowOnStart);
@@ -80,8 +95,6 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
         const subscription = gyroscope.subscribe(({ z }) => {
             const yawDeg = z * (180 / Math.PI);
             setYaw(yawDeg);
-            // Debug: log yaw and heading to console
-            console.log(`Yaw: ${yawDeg.toFixed(1)}°, Heading: ${location?.heading != null ? location.heading.toFixed(1) : 'N/A'}°`);
         });
         return () => subscription.unsubscribe();
     }, [location]);

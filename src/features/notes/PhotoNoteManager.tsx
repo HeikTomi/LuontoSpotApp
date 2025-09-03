@@ -1,3 +1,5 @@
+// TODO: Piilota lisäyslomake UI:sta
+// TODO: Lisää filtteröinti mahdollisuudet muistiinpanojen listaukseen
 import React, { useEffect, useCallback, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StyleSheet, FlatList, Alert, Image, View, TextInput, useColorScheme, Dimensions } from 'react-native';

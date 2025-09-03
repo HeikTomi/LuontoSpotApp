@@ -272,32 +272,17 @@ export const MapScreen: React.FC<{ autoFollowOnStart?: boolean }> = ({ autoFollo
     */
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#181818' : '#fff' }]}> 
-            {/* Kompassi ylhäällä */}
-            <View style={[styles.compassContainer, { backgroundColor: isDark ? '#222' : '#f5f5f5', position: 'relative', height: 115, justifyContent: 'center', alignItems: 'center' }]}> 
-                {/* Kompassi keskelle */}
-                <Compass />
-                {/* Indikaattorit oikeaan reunaan */}
-                <View style={{ position: 'absolute', right: 18, top: 48, flexDirection: 'row', alignItems: 'center', zIndex: 10 }}>
-                    {/* Auto-follow-indikaattori */}
-                    <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        marginRight: 4,
-                        borderRadius: 16,
-                        padding: 2,
-                        backgroundColor: 'rgba(255,255,255,0.7)',
-                    }}>
-                        <MaterialCommunityIcons name="crosshairs-gps" size={20} color={isAutoFollow ? '#2196F3' : '#BDBDBD'} style={{ marginRight: 2 }} />
-                    </View>
-                    {/* GPS-indikaattori */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <View style={{
-                                borderRadius: 16,
-                                padding: 2,
-                                backgroundColor: 'rgba(255,255,255,0.7)',
-                            }}>
-                                <OnlineIndicator />
-                            </View>
+            {/* Kompassi ja indikaattorit ylhäällä keskitetysti vaalealla taustalla */}
+            <View style={styles.indicatorWrapper}>
+                <View style={[styles.indicatorGroup, { backgroundColor: isDark ? '#222' : '#f0f0f0' }]}> 
+                    <Compass />
+                    <View style={styles.indicatorRow}>
+                        <View style={styles.indicatorIcon}>
+                            <MaterialCommunityIcons name="crosshairs-gps" size={28} color={isAutoFollow ? '#2196F3' : '#BDBDBD'} />
+                        </View>
+                        <View>
+                            <OnlineIndicator />
+                        </View>
                     </View>
                 </View>
             </View>
@@ -349,12 +334,12 @@ export const MapScreen: React.FC<{ autoFollowOnStart?: boolean }> = ({ autoFollo
                 )}
             </View>
 
-            <View style={[styles.tagContainer, { backgroundColor: isDark ? '#222' : '#f5f5f5' }]}> 
+            <View style={[styles.tagContainer, { backgroundColor: isDark ? '#222' : 'rgba(255, 255, 255, 1)' }]}> 
                 <TagButton iconName="mushroom" onPress={() => handleTagPress('Sieni')} />
                 <TagButton iconName="fruit-grapes" onPress={() => handleTagPress('Marja')} />
                 <TagButton iconName="star" onPress={() => handleTagPress('Mielenkiinto')} />
             </View>
-            {/* Tagipainikkeet alhaalla 
+            {/* Kehityskäyössä olleet kannan puhdistus painikkeet 
                 <Button title="Reset PhotoNotes-taulu" onPress={handleResetNotesTable} />
                 <Button title="Reset Locations-taulu" onPress={handleResetLocationsTable} />
             */}
@@ -375,7 +360,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     compassContainer: {
-        height: 115,
+        height: 100,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -386,7 +371,29 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 30,
+        padding: 20,
+    },
+    indicatorWrapper: {
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 16,
+    },
+    indicatorGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 32,
+        paddingVertical: 5,
+        paddingHorizontal: 15,
+        marginBottom: 8,
+    },
+    indicatorRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: 24,
+    },
+    indicatorIcon: {
+        marginRight: 16,
     },
 });
 

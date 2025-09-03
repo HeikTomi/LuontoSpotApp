@@ -7,7 +7,7 @@ const NotesScreen: React.FC<{ setAutoFollowOnStart?: (val: boolean) => void }> =
     const isDark = colorScheme === 'dark';
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? '#181818' : '#fff' }]}> 
+        <View style={[styles.container, isDark ? styles.bgDark : styles.bgLight]}> 
             {/* PhotoNoteManager-komponentti */}
             <PhotoNoteManager setAutoFollowOnStart={setAutoFollowOnStart} />
         </View>
@@ -17,6 +17,12 @@ const NotesScreen: React.FC<{ setAutoFollowOnStart?: (val: boolean) => void }> =
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    bgDark: {
+        backgroundColor: '#181818',
+    },
+    bgLight: {
+        backgroundColor: '#fff',
     },
 });
 
