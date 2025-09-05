@@ -33,7 +33,7 @@ export type RootStackParamList = {
   Camera: { id: number }; // Ei callbackia navigationissa
   PhotoNoteManager: {prefilledTitle: string};
   Settings: undefined;
-  Map: { location?: { latitude: number; longitude: number; heading: number | null } };
+  Map: { location?: { latitude: number; longitude: number; heading: number | null }; autoFollowOnStart?: boolean };
 };
 
 export type AuthenticationScreenNavigationProp = StackNavigationProp<
@@ -72,14 +72,11 @@ const DrawerNavigator: React.FC = () => {
     <Drawer.Navigator
       initialRouteName="Map"
       screenOptions={{
-        headerShown: true,
+        headerShown: false, // Piilota header kaikista drawerin screeneistä
         drawerActiveTintColor: isDark ? '#fffbe6' : '#4CAF50',
         drawerInactiveTintColor: isDark ? '#fff' : '#333',
-        drawerLabelStyle: { fontSize: 16, color: isDark ? '#fffbe6' : '#333' },
+        drawerLabelStyle: { fontSize: 15, color: isDark ? '#fffbe6' : '#333' },
         drawerStyle: { backgroundColor: isDark ? '#181818' : '#fff' },
-        headerStyle: { backgroundColor: isDark ? '#181818' : '#fff' },
-        headerTitleStyle: { color: isDark ? '#fffbe6' : '#222' },
-        headerTintColor: isDark ? '#fffbe6' : '#222',
       }}
     >
       <Drawer.Screen
@@ -92,15 +89,24 @@ const DrawerNavigator: React.FC = () => {
         listeners={{
           focus: () => {
             setAutoFollowOnStart(true);
-            // Nollaa location-parametri drawerista tullessa
-            // Jos haluat nollata location-parametrin, tee se MapScreenissä useFocusEffectilla
-            console.log('DrawerNavigator: Map screen focused, autoFollowOnStart set to true');
+            console.log('DrawerNavigator: Map screen focused, autoFollowOnStart set to true (drawer default)');
           },
         }}
       >
-        {props => (
-          <MapScreen {...props} autoFollowOnStart={autoFollowOnStart} />
-        )}
+        {props => {
+          let autoFollow = autoFollowOnStart;
+          if (
+            props.route &&
+            typeof props.route === 'object' &&
+            'params' in props.route &&
+            props.route.params &&
+            typeof props.route.params === 'object' &&
+            'autoFollowOnStart' in props.route.params
+          ) {
+            autoFollow = (props.route.params as { autoFollowOnStart?: boolean }).autoFollowOnStart ?? autoFollowOnStart;
+          }
+          return <MapScreen {...props} autoFollowOnStart={autoFollow} />;
+        }}
       </Drawer.Screen>
       <Drawer.Screen
         name="Notes"
@@ -162,7 +168,7 @@ function App(): React.JSX.Element {
 
   return (
     <SafeAreaProvider>
-  <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea}>
         <ReduxProvider store={store}>
           <NavigationContainer>
             <Stack.Navigator initialRouteName="Authentication">
@@ -189,9 +195,7 @@ function App(): React.JSX.Element {
               <Stack.Screen
                 name="Camera"
                 component={CameraScreen as React.ComponentType<any>}
-                options={{
-                  headerTitle: () => <Text style={styles.headerTitle}>{t('camera')}</Text>,
-                }}
+                options={{ headerShown: false }}
               />
               {/* Drawer-navigaatio alkaa tästä */}
               <Stack.Screen

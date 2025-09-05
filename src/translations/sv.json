@@ -29,6 +29,10 @@
     "resetPasswordText": "Ange din e-postadress så skickar vi en länk för att återställa lösenordet.",
     "slogan": "Upptäck naturens skönhet",
     "notes": "Anteckningar",
+    "sortDefault": "Sortera...",
+    "sortNewest": "Nyaste först",
+    "sortOldest": "Äldst först",
+    "sortNearest": "Närmast först",
     "addNote": "Lägg till anteckning",
     "editNote": "Redigera anteckning",
     "deleteNote": "Ta bort anteckning",
@@ -38,5 +42,7 @@
     "aboutDescription": "LuontoSpot är en mobilapp för att upptäcka naturplatser och spara anteckningar. Du kan enkelt lägga till egna observationer, foton och anteckningar.",
     "contactEmail": "Kontakt",
     "language": "Språk",
-    "mapFilters": "Kartfilter"
+    "mapFilters": "Kartfilter",
+    "dateLabel": "Datum",
+    "distanceLabel": "Avstånd"
 }

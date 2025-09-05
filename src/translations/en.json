@@ -29,6 +29,10 @@
     "resetPasswordText": "Enter your email address and we will send you a password reset link.",
     "slogan": "Find the beauty of nature",
     "notes": "Notes",
+    "sortDefault": "Sort...",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "sortNearest": "Nearest first",
     "addNote": "Add Note",
     "editNote": "Edit Note",
     "deleteNote": "Delete Note",
@@ -38,6 +42,8 @@
     "aboutDescription": "LuontoSpot is a mobile app for discovering nature spots and saving notes. You can add your own observations, photos, and notes easily.",
     "contactEmail": "Contact",
     "language": "Language",
-    "mapFilters": "Map filters"
+    "mapFilters": "Map filters",
+    "dateLabel": "Date",
+    "distanceLabel": "Distance"
 
 }

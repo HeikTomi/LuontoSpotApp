@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Image, ActivityIndicator, Alert, useColorScheme, TouchableOpacity, Text, TextInput } from 'react-native';
+import { View, StyleSheet, Image, ActivityIndicator, Alert, useColorScheme, TouchableOpacity, Text, TextInput, Modal } from 'react-native';
 import ImageZoom from 'react-native-image-pan-zoom';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { gyroscope } from 'react-native-sensors';
+import UserLocationMarker from './UserLocationMarker';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
 import { AppDispatch } from '../../store/store';
@@ -11,8 +11,7 @@ import { deleteLocationDb } from './locationSlice';
 import { useDispatch } from 'react-redux';
 import { deleteItem } from '../notes/sqliteSlice';
 import { addItem } from '../notes/sqliteSlice';
-import { fetchItems } from '../notes/sqliteSlice';
-import { useAppSelector } from '../../hooks/userAppSelector';
+import { initializeDb, fetchItems } from '../notes/sqliteSlice';
 import { fetchTileImage } from '../../services/mml/mmlApi';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -30,6 +29,7 @@ interface Location {
 
 interface MapComponentProps {
     location: { latitude: number; longitude: number; heading: number | null } | null;
+    heading: number;
     zoomLevel: number;
     autoFollowOnStart?: boolean;
     filters?: {
@@ -39,7 +39,7 @@ interface MapComponentProps {
     };
 }
 
-const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFollowOnStart, filters }) => {
+const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLevel, autoFollowOnStart, filters }) => {
     // TODO: Puheentunnistus noten syöttöön
     // - Ensimmäinen sana puheesta otsikoksi, loput muistioksi
     // - Käytä esim. react-native-voice
@@ -55,9 +55,9 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
     // - Lisää accessibilityLabel kaikille interaktiivisille elementeille
     // - Tarkista värikontrastit (WCAG-standardit)
     // - Testaa VoiceOver/ScreenReader-tuki
-    // Käytetään vain autoFollowOnStart-propseja, ei omaa tilaa
+
     useEffect(() => {
-        console.log('MapComponent render: autoFollowOnStart =', autoFollowOnStart);
+        // MapComponent render: autoFollowOnStart
     }, [autoFollowOnStart]);
 
     // Sisäinen tila kartan locationille
@@ -71,11 +71,17 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
         // Jos seuranta on pois päältä, älä päivitä karttaa location-propin muutoksesta
     }, [autoFollowOnStart, location]);
 
-    // Toggle seuranta päälle/pois kun käyttäjä painaa nappia
-    // Toggle-painike on nyt MapScreenissä, ei MapComponentissa
-
     // Haetaan paikkatiedot kannasta mountissa
     const dispatch: AppDispatch = useDispatch();
+
+    // Alusta tietokanta ja hae muistiinpanot heti mountissa (ensimmäinen käynnistys)
+    useEffect(() => {
+        dispatch(initializeDb()).then(() => {
+            dispatch(fetchItems());
+        });
+    }, [dispatch]);
+
+    // Haetaan paikkatiedot kannasta mountissa
     useEffect(() => {
         async function fetchLocationsAndSet() {
             try {
@@ -89,24 +95,10 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
         fetchLocationsAndSet();
     }, [dispatch]);
 
-    // Gyroskoopin menosuunta
-    const [yaw, setYaw] = useState(0);
-    useEffect(() => {
-        const subscription = gyroscope.subscribe(({ z }) => {
-            const yawDeg = z * (180 / Math.PI);
-            setYaw(yawDeg);
-        });
-        return () => subscription.unsubscribe();
-    }, [location]);
-
-    const notes = useAppSelector((state) => state.sqlite.items);
-
-    // Haetaan muistiinpanot vain kerran mountissa
-    useEffect(() => {
-        dispatch({ type: 'sqlite/fetchItems' });
-    }, [dispatch]);
-
     const { t } = useTranslation();
+    const notes = useSelector((state: RootState) => state.sqlite.items); // Moved to the top
+    const [editNoteId, setEditNoteId] = useState<number | null>(null);
+    const noteObj = notes && editNoteId ? notes.find((n) => n.id === editNoteId) : null; // Moved to the top
     const [noteTitle, setNoteTitle] = useState('');
     const [noteModalVisible, setNoteModalVisible] = useState(false);
     const [noteText, setNoteText] = useState('');
@@ -116,11 +108,11 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [editNoteTitle, setEditNoteTitle] = useState('');
     const [editNoteText, setEditNoteText] = useState('');
-    const [editNoteId, setEditNoteId] = useState<number | null>(null);
-    
+    const [fullscreenImageVisible, setFullscreenImageVisible] = useState(false);
+
     // Markkerin painallus
     const handleMarkerPress = (loc: Location) => {
-        console.log('Marker pressed:', loc);
+    // Marker pressed
         if (activeMarkerId === loc.id) {
             setActiveMarkerId(null);
         } else {
@@ -129,9 +121,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
     };
 
     const handleAddNotePress = (loc: Location) => {
-        console.log('Add note icon pressed for marker and modal should open:', loc);
-        console.log('Current notes:', notes);
-        console.log('Current locations:', locations);
+    // Add note icon pressed for marker and modal should open
         setNoteLocationId(loc.id);
         setNoteText('');
         setNoteTitle('');
@@ -147,7 +137,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
             note: noteText,
             locationId: noteLocationId,
         };
-        console.log('Saving note:', newNote);
+    // Saving note
         // Tallennetaan note ja odotetaan id
         const result = await dispatch(addItem(newNote));
         const noteId = result.payload?.id || result.payload?.insertId;
@@ -167,26 +157,25 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
     };
 
     const handleEditNotePress = (loc: Location) => {
-        console.log('Edit note icon pressed for marker:', loc);
-        console.log('loc.noteId:', loc.noteId);
-        console.log('notes:', notes);
-            const noteObj = notes.find((n) => n.id === loc.noteId);
-            console.log('handleEditNotePress noteObj:', noteObj);
-        if (noteObj) {
-            setEditNoteTitle(noteObj.name);
-            setEditNoteText(noteObj.note || '');
-            setEditNoteId(noteObj.id);
-                console.log('handleEditNotePress setEditNoteTitle:', noteObj.name);
-                console.log('handleEditNotePress setEditNoteText:', noteObj.note);
+        dispatch(fetchItems()); // Varmista että notes päivittyy
+        console.log('handleEditNotePress', { loc, notes });
+        const foundNote = notes.find((n) => n.id === loc.noteId);
+        console.log('foundNote', foundNote);
+        if (foundNote) {
+            setEditNoteTitle(foundNote.name);
+            setEditNoteText(foundNote.note || '');
+            setEditNoteId(foundNote.id);
             setEditModalVisible(true);
         } else {
-            console.log('Note object not found for noteId:', loc.noteId);
+            // Optionally show modal for empty note
+            // setEditModalVisible(true);
         }
     };
 
     const handleSaveEditNote = () => {
         if (editNoteId && editNoteTitle.trim()) {
             dispatch(updateItem({ id: editNoteId, note: editNoteText, name: editNoteTitle }));
+            dispatch(fetchItems());
             setEditModalVisible(false);
         }
     };
@@ -199,7 +188,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
     };
 
     const handleDeletePress = (loc: Location) => {
-    console.log('Delete icon pressed for marker:', loc);
+    // Delete icon pressed for marker
     // Poista note jos sellainen on
     if (loc.noteId) {
         dispatch(deleteItem(loc.noteId));
@@ -298,12 +287,11 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
     // Renderöi tallennetut merkinnät
     const renderMarkers = () => {
         if (!tileIndices) { return null; }
-        const allFiltersOff = filters && !filters.mushroom && !filters.berry && !filters.star;
         const allFiltersOn = !filters || (filters.mushroom && filters.berry && filters.star);
         const filteredLocations = locations.filter((loc) => {
             const { tileX, tileY } = calculateTileIndices(loc.latitude, loc.longitude, zoomLevel);
             // Jos filtterit ovat kokonaan pois päältä (kaikki false) TAI kaikki päällä, näytetään kaikki markerit
-            if (allFiltersOff || allFiltersOn) {
+            if ( allFiltersOn) {
                 return tileX === tileIndices.tileX && tileY === tileIndices.tileY;
             }
             // Muussa tapauksessa filtteröi tagType
@@ -324,9 +312,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
             );
             const isActive = activeMarkerId === loc.id;
             // Etsi note vain noteId:llä
-            console.log(loc.noteId);
             const hasNote = loc.noteId != null && loc.noteId !== 0;
-            console.log('Render marker:', { loc, hasNote });
             return (
                 <View
                     key={loc.id}
@@ -401,18 +387,14 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
             {renderMarkers()}
             {/* Oma lokaatiomarkkeri tagin päällä, mutta tagi klikattavissa */}
             {location && (
-                <View
-                    style={[styles.userLocation, styles.userLocationOnTop, { left: markerPosition.x, top: markerPosition.y }]
-                    }
-                    pointerEvents="none"
-                >
-                    <View style={isDark ? styles.circleDark : styles.circleLight}>
-                        <MaterialCommunityIcons name="navigation" size={20} color="#fff" style={{ transform: [{ rotate: `${yaw}deg` }] }} />
-                    </View>
-                </View>
+
+                <UserLocationMarker
+                    x={markerPosition.x}
+                    y={markerPosition.y}
+                    heading={heading}
+                    isDark={isDark}
+                />
             )}
-            {/* Tähtäin-ikoni kartan alalaitaan kun seuranta ei ole päällä */}
-            {/* Ei enää omaa togglea, vain MapScreenin toggle */}
             {noteModalVisible && (
                 <View style={styles.noteModalOverlay}>
                     <View style={[styles.noteModalCard, isDark ? styles.noteModalCardDark : styles.noteModalCardLight]}>
@@ -453,86 +435,147 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, zoomLevel, autoFo
                 </View>
             )}
             {editModalVisible && (
-                <View style={styles.noteModalOverlay}>
-                    <View style={[styles.noteModalCard, isDark ? styles.noteModalCardDark : styles.noteModalCardLight]}>
-                        <Text style={[styles.noteModalTitle, isDark ? styles.noteModalTitleDark : styles.noteModalTitleLight]}>{t('editNoteTitle', 'Muokkaa muistiinpanoa')}</Text>
-                        {/* Photo at the top if available */}
-                        {(() => {
-                            const noteObj = notes.find((n) => n.id === editNoteId);
-                            if (noteObj && noteObj.photoUrl) {
+                <View style={[styles.noteModalOverlay, styles.noteModalOverlayCentered]}>
+                        <View style={[styles.noteModalCard, isDark ? styles.noteModalCardDark : styles.noteModalCardLight, styles.noteModalCardEdit]}>
+                            <View style={styles.noteModalEditHeader}>
+                                <TouchableOpacity onPress={handleOpenCamera} style={styles.iconButton}>
+                                    <MaterialCommunityIcons name="camera" size={28} color={isDark ? '#2196F3' : '#1976D2'} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={handleSaveEditNote}
+                                    style={[styles.iconButton, !editNoteTitle.trim() && styles.iconButtonDisabled]}
+                                    disabled={!editNoteTitle.trim()}
+                                >
+                                    <MaterialCommunityIcons name="check" size={28} color={(!editNoteTitle.trim()) ? (isDark ? '#555' : '#ccc') : (isDark ? '#90ee90' : '#4CAF50')} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.iconButton}>
+                                    <MaterialCommunityIcons name="close" size={28} color={isDark ? '#ff6666' : '#d32f2f'} />
+                                </TouchableOpacity>
+                            </View>
+                            {noteObj && noteObj.photoUrl ? (() => {
+                                // Käytetään samat arvot cropWidth/cropHeight ja imageWidth/imageHeight kuin maxWidth/maxHeight
+                                const maxWidth = 250;
+                                const maxHeight = 200;
                                 return (
-                                    <View style={styles.imageZoomContainer}>
-                                        {/* @ts-ignore: ImageZoom children type issue */}
-                                        <ImageZoom
-                                            cropWidth={300}
-                                            cropHeight={300}
-                                            imageWidth={300}
-                                            imageHeight={300}
-                                            minScale={1}
-                                            maxScale={3}
-                                            enableCenterFocus={false}
-                                        >
+                                    <View style={[styles.imageZoomContainer, styles.imageZoomContainerCustom]}> 
+                                        {React.createElement(
+                                            ImageZoom as any,
+                                            {
+                                                cropWidth: maxWidth,
+                                                cropHeight: maxHeight,
+                                                imageWidth: maxWidth,
+                                                imageHeight: maxHeight,
+                                                minScale: 1,
+                                                maxScale: 3,
+                                                enableCenterFocus: false,
+                                                onDoubleClick: () => setFullscreenImageVisible(true),
+                                            },
                                             <Image
                                                 source={{ uri: noteObj.photoUrl }}
-                                                style={styles.zoomedImage}
+                                                style={[styles.zoomedImage, isDark && styles.zoomedImageDark, { width: maxWidth, height: maxHeight }]}
                                                 resizeMode="contain"
                                             />
-                                        </ImageZoom>
+                                        )}
                                     </View>
                                 );
-                            } else {
-                                return (
-                                    <View style={styles.noImageContainer}>
-                                        <MaterialCommunityIcons name="image-off-outline" size={40} color={isDark ? '#aaa' : '#888'} />
-                                    </View>
-                                );
-                            }
-                        })()}
-                        {/* Editable title field */}
-                        <View style={styles.noteModalInputWrapper}>
-                            <TextInput
-                                value={editNoteTitle}
-                                onChangeText={setEditNoteTitle}
-                                placeholder={t('noteTitlePlaceholder', 'Otsikko...')}
-                                style={[styles.noteModalInput, isDark ? styles.noteModalInputDark : styles.noteModalInputLight]}
-                                placeholderTextColor={isDark ? '#aaa' : '#888'}
-                            />
+                            })() : (
+                                <View style={styles.noImageContainer}>
+                                    <MaterialCommunityIcons name="image-off-outline" size={40} color={isDark ? '#aaa' : '#888'} />
+                                </View>
+                            )}
+                            <View style={styles.noteModalInputWrapper}>
+                                <TextInput
+                                    value={editNoteTitle}
+                                    onChangeText={setEditNoteTitle}
+                                    placeholder={t('noteTitlePlaceholder', 'Otsikko...') || ''}
+                                    style={[styles.noteModalInput, isDark ? styles.noteModalInputDark : styles.noteModalInputLight]}
+                                    placeholderTextColor={isDark ? '#aaa' : '#888'}
+                                />
+                            </View>
+                            <View style={styles.noteModalInputWrapper}>
+                                <TextInput
+                                    value={editNoteText}
+                                    onChangeText={setEditNoteText}
+                                    placeholder={t('noteContentPlaceholder', 'Muistiinpanon sisältö...') || ''}
+                                    style={[styles.noteModalInput, styles.noteModalNoteInput, isDark ? styles.noteModalInputDark : styles.noteModalInputLight]}
+                                    multiline
+                                    numberOfLines={4}
+                                    placeholderTextColor={isDark ? '#aaa' : '#888'}
+                                />
+                            </View>
                         </View>
-                        {/* Editable note text field */}
-                        <View style={styles.noteModalInputWrapper}>
-                            <TextInput
-                                value={editNoteText}
-                                onChangeText={setEditNoteText}
-                                placeholder={t('noteContentPlaceholder', 'Muistiinpanon sisältö...')}
-                                style={[styles.noteModalInput, styles.noteModalNoteInput, isDark ? styles.noteModalInputDark : styles.noteModalInputLight]}
-                                multiline
-                                numberOfLines={4}
-                                placeholderTextColor={isDark ? '#aaa' : '#888'}
-                            />
-                        </View>
-                        <View style={styles.noteModalActions}>
-                            <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.iconButton}>
-                                <MaterialCommunityIcons name="close" size={28} color={isDark ? '#ff6666' : '#d32f2f'} />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={handleSaveEditNote}
-                                style={[styles.iconButton, !editNoteTitle.trim() && styles.iconButtonDisabled]}
-                                disabled={!editNoteTitle.trim()}
-                            >
-                                <MaterialCommunityIcons name="check" size={28} color={(!editNoteTitle.trim()) ? (isDark ? '#555' : '#ccc') : (isDark ? '#90ee90' : '#4CAF50')} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={handleOpenCamera} style={styles.iconButton}>
-                                <MaterialCommunityIcons name="camera" size={28} color={isDark ? '#90caf9' : '#1976d2'} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
                 </View>
+            )}
+            {fullscreenImageVisible && (
+                <Modal visible={fullscreenImageVisible} transparent={true} animationType="fade">
+                    <View style={styles.fullscreenImageContainer}>
+                        <Image
+                            source={{ uri: noteObj?.photoUrl }}
+                            style={styles.fullscreenImage}
+                            resizeMode="contain"
+                        />
+                        <TouchableOpacity style={styles.closeButton} onPress={() => setFullscreenImageVisible(false)}>
+                            <MaterialCommunityIcons name="close" size={32} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                </Modal>
             )}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
+    noteModalOverlayCentered: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999,
+    },
+    keyboardAvoiding: {
+        flex: 1,
+        width: '100%',
+    },
+    noteModalCardEdit: {
+        maxHeight: '98%',
+        minHeight: 120,
+        width: '96%',
+        alignSelf: 'center',
+        justifyContent: 'flex-start',
+        paddingBottom: 4,
+    },
+    noteModalEditHeader: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 8,
+    },
+    fullscreenImageContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.98)',
+        zIndex: 9999,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    fullscreenImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'contain',
+    },
+    closeButton: {
+        position: 'absolute',
+        top: 32,
+        right: 32,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: 24,
+        padding: 8,
+        zIndex: 10000,
+    },
+    imageZoomContainerCustom: {
+        width: '100%',
+    },
     liveIndicatorContainer: {
         position: 'absolute',
         top: 18,
@@ -543,15 +586,6 @@ const styles = StyleSheet.create({
         padding: 4,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    pulse: {
-        // Sykkivä animaatio
-        shadowColor: '#4CAF50',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 8,
-        // Voit lisätä Animated API:lla oikean sykkeen jos haluat
     },
     crosshairButton: {
         position: 'absolute',
@@ -568,12 +602,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         width: '100%',
+        maxWidth: 350,
+        alignSelf: 'center',
     },
     zoomedImage: {
-        width: 300,
-        height: 300,
+        maxWidth: 320,
+        maxHeight: 220,
         borderRadius: 6,
         backgroundColor: '#eee',
+        alignSelf: 'center',
+    },
+    zoomedImageDark: {
+        backgroundColor: '#232323',
     },
     noImageContainer: {
         marginBottom: 12,
@@ -634,8 +674,18 @@ const styles = StyleSheet.create({
     noteModalCard: {
         backgroundColor: '#fff',
         padding: 20,
+        paddingTop: 10,
         borderRadius: 10,
-        width: '80%',
+        width: '90%',
+        maxWidth: 400,
+        alignSelf: 'center',
+        borderWidth: 2,
+        borderColor: '#e0e0e0',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 8,
     },
     noteModalTitle: {
         fontWeight: 'bold',
@@ -655,6 +705,7 @@ const styles = StyleSheet.create({
     noteModalActions: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
+        marginBottom: 8,
     },
     noteModalCancelBtn: {
         marginRight: 10,
@@ -676,9 +727,13 @@ const styles = StyleSheet.create({
     markerActions: {
         position: 'absolute',
         top: -10,
-        left: 35,
+        left: '50%',
+        transform: [{ translateX: -60 }], // keskittää ja pitää napit ruudulla
         flexDirection: 'row',
         zIndex: 2,
+        minWidth: 120,
+        maxWidth: '90%',
+        justifyContent: 'space-between',
     },
     actionButtonWrapper: {
         marginHorizontal: 4,

@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { initializeDatabase } from '../../database';
 import { addNote, fetchNotes, updateNote, updatePhotoUrl, deleteNote } from '../../database/queries/notes';
+import RNFS from 'react-native-fs';
 
 interface SqliteState {
     status: 'idle' | 'loading' | 'succeeded' | 'failed';
@@ -28,11 +29,29 @@ export const updateItem = createAsyncThunk('sqlite/updateItem', async ({ id, not
     return { id, note, name };
 });
 
-export const updatePhoto = createAsyncThunk('sqlite/updatePhotoUrl', async ({ id, photoUrl }: { id: number; photoUrl: string }) => {
+export const updatePhoto = createAsyncThunk('sqlite/updatePhotoUrl', async ({ id, photoUrl }: { id: number; photoUrl: string }, { getState }) => {
+    const state: any = getState();
+    const note = state.sqlite.items.find((n: any) => n.id === id);
+    if (note && note.photoUrl && note.photoUrl !== photoUrl) {
+        try {
+            await RNFS.unlink(note.photoUrl.replace('file://', ''));
+        } catch (e) {
+            console.warn('Kuvan poisto epäonnistui:', e);
+        }
+    }
     await updatePhotoUrl(id, photoUrl);
 });
 
-export const deleteItem = createAsyncThunk('sqlite/deleteItem', async (id: number) => {
+export const deleteItem = createAsyncThunk('sqlite/deleteItem', async (id: number, { getState }) => {
+    const state: any = getState();
+    const note = state.sqlite.items.find((n: any) => n.id === id);
+    if (note && note.photoUrl) {
+        try {
+            await RNFS.unlink(note.photoUrl.replace('file://', ''));
+        } catch (e) {
+            console.warn('Kuvan poisto epäonnistui:', e);
+        }
+    }
     await deleteNote(id);
     return id;
 });

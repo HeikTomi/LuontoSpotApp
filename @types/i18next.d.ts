@@ -44,6 +44,8 @@ declare module 'i18next' {
             aboutTitle: string;
             aboutDescription: string;
             contactEmail: string;
+            dateLabel: string;
+            distanceLabel: string;
           };
         };
       }

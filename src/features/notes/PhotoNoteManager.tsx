@@ -1,15 +1,16 @@
-// TODO: Piilota lisäyslomake UI:sta
-// TODO: Lisää filtteröinti mahdollisuudet muistiinpanojen listaukseen
+import { Picker } from '@react-native-picker/picker';
 import React, { useEffect, useCallback, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StyleSheet, FlatList, Alert, Image, View, TextInput, useColorScheme, Dimensions } from 'react-native';
-import { Surface, TextInput as PaperTextInput, Text, TouchableRipple, Modal, Button, IconButton, Card } from 'react-native-paper';
+import { Surface, Text, TouchableRipple, Modal, IconButton, Card } from 'react-native-paper';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import ListTag from './ListTag';
+import { Host } from 'react-native-portalize';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/userAppSelector';
-import { initializeDb, addItem, fetchItems, deleteItem, updateItem } from './sqliteSlice';
+import { initializeDb, fetchItems, deleteItem, updateItem } from './sqliteSlice';
 import {
-    setNote,
+    //setNote,
     setModalVisible,
     setSelectedPhotoTitle,
     setSelectedPhotoNote,
@@ -19,14 +20,14 @@ import {
     setSelectedPhotoUrl,
 } from './photoNoteSlice';
 import { useTranslation } from 'react-i18next';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../App';
 // @ts-ignore
 import ImageZoom from 'react-native-image-pan-zoom';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PhotoNoteManager'>;
-type PhotoNoteManagerRouteProp = RouteProp<RootStackParamList, 'PhotoNoteManager'>;
+//type PhotoNoteManagerRouteProp = RouteProp<RootStackParamList, 'PhotoNoteManager'>;
 
 const windowWidth = Dimensions.get('window').width;
 const windowHeight = 300;
@@ -36,7 +37,12 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
     const locations = useAppSelector((state) => state.location.locations);
     const notes = useAppSelector((state) => state.sqlite.items);
     // Valitse automaattisesti viimeisin location id
-    const selectedLocationId = locations.length > 0 ? locations[locations.length - 1].id : null;
+    //const selectedLocationId = locations.length > 0 ? locations[locations.length - 1].id : null;
+    // Käyttäjän sijainti (voit vaihtaa logiikan tarpeen mukaan)
+    const userLocation = locations.length > 0 ? {
+        latitude: locations[locations.length - 1].latitude,
+        longitude: locations[locations.length - 1].longitude,
+    } : undefined;
     const fetchNoteLocation = (noteId: number) => {
         console.log('DEBUG notes:', notes);
         console.log('DEBUG locations:', locations);
@@ -58,20 +64,81 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
             heading: null,
         };
     };
-    const route = useRoute<PhotoNoteManagerRouteProp>();
-    const { prefilledTitle } = route.params || {};
 
-    const [title, setTitle] = useState(prefilledTitle || '');
+        // Sorttaus
+    const [sortType, setSortType] = useState<'distance' | 'newest' | 'oldest'>('newest');
+
+    // Laske etäisyys käyttäjään (käytetään sorttaukseen)
+    function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const toRad = (value: number) => (value * Math.PI) / 180;
+        const R = 6371e3;
+        const φ1 = toRad(lat1);
+        const φ2 = toRad(lat2);
+        const Δφ = toRad(lat2 - lat1);
+        const Δλ = toRad(lon2 - lon1);
+        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const d = R * c;
+        return d;
+    }
+
+    //const route = useRoute<PhotoNoteManagerRouteProp>();
+    //const { prefilledTitle } = route.params || {};
+
+    //const [title, setTitle] = useState(prefilledTitle || '');
     const [noteFocused, setNoteFocused] = useState(false);
-    const [editNoteMode, setEditNoteMode] = useState(false);
-    const [inputFocused, setInputFocused] = useState(false);
+    //const [editNoteMode] = useState(false);
+    //const [inputFocused, setInputFocused] = useState(false);
 
     const { t } = useTranslation();
     const dispatch = useAppDispatch();
     const navigation = useNavigation<NavigationProp>();
-
     const items = useAppSelector((state) => state.sqlite.items);
-    const note = useAppSelector((state) => state.photoNote.note);
+
+    // Filter-tilat
+    const [showInterest, setShowInterest] = useState(true);
+    const [showBerry, setShowBerry] = useState(true);
+    const [showMushroom, setShowMushroom] = useState(true);
+
+    // Filter-ikonien tyylit
+    const filterIconSize = 20;
+
+    // Suodatettu ja lajiteltu lista
+    let filteredItems = items.filter((item: any) => {
+        const location = locations.find((l: any) => l.noteId === item.id);
+        if (!location || !location.tagType) { return true; }
+        if (location.tagType === 'Mielenkiinto' && showInterest) { return true; }
+        if (location.tagType === 'Marja' && showBerry) { return true; }
+        if (location.tagType === 'Sieni' && showMushroom) { return true; }
+        return false;
+    });
+    // Sorttaus
+    filteredItems = filteredItems.slice();
+    if (sortType === 'distance' && userLocation) {
+        filteredItems.sort((a, b) => {
+            const locA = locations.find((l: any) => l.noteId === a.id);
+            const locB = locations.find((l: any) => l.noteId === b.id);
+            if (!locA || !locB) return 0;
+            const distA = getDistance(userLocation.latitude, userLocation.longitude, locA.latitude, locA.longitude);
+            const distB = getDistance(userLocation.latitude, userLocation.longitude, locB.latitude, locB.longitude);
+            return distA - distB;
+        });
+    } else if (sortType === 'newest') {
+        filteredItems.sort((a, b) => {
+            const dateA = new Date(a.lastUpdated || a.createdAt || 0).getTime();
+            const dateB = new Date(b.lastUpdated || b.createdAt || 0).getTime();
+            return dateB - dateA;
+        });
+    } else if (sortType === 'oldest') {
+        filteredItems.sort((a, b) => {
+            const dateA = new Date(a.lastUpdated || a.createdAt || 0).getTime();
+            const dateB = new Date(b.lastUpdated || b.createdAt || 0).getTime();
+            return dateA - dateB;
+        });
+    }
+    //const note = useAppSelector((state) => state.photoNote.note);
     const modalVisible = useAppSelector((state) => state.photoNote.modalVisible);
     const noteModalVisible = useAppSelector((state) => state.photoNote.noteModalVisible);
     const selectedPhotoUrl = useAppSelector((state) => state.photoNote.selectedPhotoUrl);
@@ -94,7 +161,7 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
     }, [dispatch, loadItems]);
 
     // Lisää uusi tietue tietokantaan
-    const handleAddPhotoNote = () => {
+    /*const handleAddPhotoNote = () => {
         if (!title.trim()) {
             Alert.alert(t('alertEmptyTitle'));
             return;
@@ -121,11 +188,12 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
             })
             .catch((error) => console.error('Error adding photo note:', error));
     };
+    */
 
     // Ota valokuva ja päivitä tietokantaan
     const handleTakePhoto = (id: number) => {
-    // @ts-ignore: React Navigation param typing workaround
-    navigation.navigate('Camera', { id });
+        // @ts-ignore: React Navigation param typing workaround
+        navigation.navigate('Camera', { id });
     };
 
     // Poista tietue tietokannasta
@@ -170,20 +238,14 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
     // Avaa valokuva modaalissa
     const handleGotoLocation = (noteId: number) => {
         const location = fetchNoteLocation(noteId);
-        // Aseta locationFromMap AsyncStoreen
-        AsyncStorage.setItem('locationFromMap', 'true').then(() => {
-            if (setAutoFollowOnStart) {
-                console.log('PhotoNoteManager: Navigating to Map from notes, autoFollowOnStart set to false');
-                setAutoFollowOnStart(false);
-            }
-            if (location && typeof location.latitude === 'number' && typeof location.longitude === 'number') {
-                console.log('Navigating to Map with location:', location);
-                navigation.navigate('Map', { location });
-            } else {
-                console.log('Location missing or invalid:', location);
-                Alert.alert('Virhe', 'Sijaintia ei löytynyt!');
-            }
-        });
+        if (setAutoFollowOnStart) {
+            setAutoFollowOnStart(false);
+        }
+        if (location && typeof location.latitude === 'number' && typeof location.longitude === 'number') {
+            navigation.navigate('Map', { location, autoFollowOnStart: false });
+        } else {
+            Alert.alert('Virhe', 'Sijaintia ei löytynyt!');
+        }
     };
 
     // Avaa muistiinpano modaalissa
@@ -196,166 +258,149 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
         dispatch(setSelectedPhotoUrl(noteObj?.photoUrl || ''));
         dispatch(setNoteModalVisible(true));
     };
-
     return (
-        <Surface style={[styles.container, isDark ? styles.surfaceDark : styles.surfaceLight]}>
-            <PaperTextInput
-                    style={[
-                        styles.input,
-                        isDark ? styles.textInputDark : styles.textInputLight,
-                        inputFocused
-                            ? (isDark ? styles.textInputFocusedDark : styles.textInputFocusedLight)
-                            : (isDark ? styles.textInputUnfocusedDark : styles.textInputUnfocusedLight),
-                        styles.textInputBottom,
-                    ]}
-                placeholder={t('placeholderTitle')}
-                value={title}
-                onChangeText={(text) => setTitle(text)}
-                theme={{ colors: { text: isDark ? '#fff' : '#222', placeholder: isDark ? '#bbb' : '#888', background: isDark ? '#222' : '#E8F5E9', primary: isDark ? '#388E3C' : '#4CAF50' } }}
-                onFocus={() => setInputFocused(true)}
-                onBlur={() => setInputFocused(false)}
-            />
-            <TextInput
-                    style={[
-                        styles.textArea,
-                        isDark ? styles.textInputDark : styles.textInputLight,
-                        noteFocused
-                            ? (isDark ? styles.textInputFocusedDark : styles.textInputFocusedLight)
-                            : (isDark ? styles.textInputUnfocusedDark : styles.textInputUnfocusedLight),
-                        styles.textInputBottom,
-                    ]}
-                placeholder={t('placeholderNote')}
-                value={note}
-                onChangeText={(text) => dispatch(setNote(text))}
-                multiline={true}
-                numberOfLines={4}
-                placeholderTextColor={isDark ? '#bbb' : '#888'}
-                onFocus={() => setNoteFocused(true)}
-                onBlur={() => setNoteFocused(false)}
-            />
-            <Button
-                mode="contained"
-                onPress={handleAddPhotoNote}
-                style={[styles.button, isDark ? styles.buttonDark : styles.buttonLight]}
-                labelStyle={isDark ? styles.labelDark : styles.labelLight}
-            >
-                {t('buttonAddNote')}
-            </Button>
-            <FlatList
-                data={items}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                    <Surface style={[styles.listItem, isDark ? styles.listItemDark : styles.listItemLight]}>
-                        <Text style={[styles.title, isDark ? styles.titleDark : styles.titleLight]}>{item.name}</Text>
-                        <View style={styles.icons}>
-                            <TouchableRipple style={styles.iconButton} onPress={() => handleTakePhoto(item.id)}>
-                                <FontAwesome name="camera" size={24} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
-                            </TouchableRipple>
-                            <TouchableRipple style={styles.iconButton} onPress={() => handleGotoLocation(item.id)}>
-                                <FontAwesome name="map" size={24} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
-                            </TouchableRipple>
-                            <TouchableRipple style={styles.iconButton} onPress={() => handleOpenNote(item.id, item.name, item.note)}>
-                                <FontAwesome name="pencil" size={24} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
-                            </TouchableRipple>
-                            <TouchableRipple style={styles.iconButton} onPress={() => handleDeletePhotoNote(item.id)}>
-                                <FontAwesome name="trash" size={24} style={isDark ? styles.iconTrashDark : styles.iconTrashLight} />
-                            </TouchableRipple>
+        <Host>
+            <Surface style={[styles.container, isDark ? styles.surfaceDark : styles.surfaceLight]}>
+                <View style={styles.headerSpacer} />
+                <View style={styles.header}>
+                    <Text style={[styles.notesTitle, isDark ? styles.notesTitleDark : styles.notesTitleLight]}>{t('notes')}</Text>
+                </View>
+                <View style={styles.filterHeaderRow}>
+                    <Picker
+                        selectedValue={sortType}
+                        style={{
+                            width: 140,
+                            color: isDark ? '#fff' : '#222',
+                            backgroundColor: isDark ? '#222' : '#fff',
+                            marginLeft: 8,
+                            borderRadius: 8,
+                            height: 36,
+                            borderWidth: 1,
+                            borderColor: isDark ? '#444' : '#bbb',
+                        }}
+                        dropdownIconColor={isDark ? '#fff' : '#222'}
+                        itemStyle={{ color: isDark ? '#fff' : '#222', backgroundColor: isDark ? '#222' : '#fff' }}
+                        onValueChange={(itemValue: 'distance' | 'newest' | 'oldest') => setSortType(itemValue)}
+                        mode="dropdown"
+                    >
+                        <Picker.Item label={t('sortDefault', 'Järjestä...')} value="" color={isDark ? '#bbb' : '#888'} />
+                        <Picker.Item label={t('sortNewest', 'Uusin ensin')} value="newest" />
+                        <Picker.Item label={t('sortOldest', 'Vanhin ensin')} value="oldest" />
+                        <Picker.Item label={t('sortNearest', 'Lähimmät ensin')} value="distance" />
+                    </Picker>
+                    <View style={[styles.filterContainer, isDark && styles.filterContainerDark]}> 
+                        <TouchableRipple onPress={() => setShowMushroom((v) => !v)} style={[styles.filterButton, isDark && styles.filterButtonDark]}>
+                            <Icon name="mushroom" size={filterIconSize} color={showMushroom ? (isDark ? '#FFD39B' : '#8D4F2A') : (isDark ? '#888' : '#bbb')} style={showMushroom ? styles.filterIconActive : styles.filterIconInactive} />
+                        </TouchableRipple>
+                        <TouchableRipple onPress={() => setShowBerry((v) => !v)} style={[styles.filterButton, isDark && styles.filterButtonDark]}>
+                            <Icon name="fruit-grapes" size={filterIconSize} color={showBerry ? (isDark ? '#CBA3FF' : '#6A1B9A') : (isDark ? '#888' : '#bbb')} style={showBerry ? styles.filterIconActive : styles.filterIconInactive} />
+                        </TouchableRipple>
+                        <TouchableRipple onPress={() => setShowInterest((v) => !v)} style={[styles.filterButton, isDark && styles.filterButtonDark]}>
+                            <Icon name="star" size={filterIconSize} color={showInterest ? (isDark ? '#FFFACD' : '#FFD700') : (isDark ? '#888' : '#bbb')} style={showInterest ? styles.filterIconActive : styles.filterIconInactive} />
+                        </TouchableRipple>
+                    </View>
+                </View>
+                <FlatList
+                    data={filteredItems}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({ item }) => (
+                        <Surface style={[styles.listItem, isDark ? styles.listItemDark : styles.listItemLight]}>
+                            <ListTag item={item} locations={locations} isDark={isDark} userLocation={userLocation} />
+                            <Text style={[styles.notetitle, isDark ? styles.titleDark : styles.titleLight, styles.titleMoreSpace]}>{item.name}</Text>
+                            <View style={styles.icons}>
+                                <TouchableRipple style={styles.iconButton} onPress={() => handleTakePhoto(item.id)}>
+                                    <FontAwesome name="camera" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
+                                </TouchableRipple>
+                                <TouchableRipple style={styles.iconButton} onPress={() => handleGotoLocation(item.id)}>
+                                    <FontAwesome name="map" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
+                                </TouchableRipple>
+                                <TouchableRipple style={styles.iconButton} onPress={() => handleOpenNote(item.id, item.name, item.note)}>
+                                    <FontAwesome name="pencil" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
+                                </TouchableRipple>
+                                <TouchableRipple style={styles.iconButton} onPress={() => handleDeletePhotoNote(item.id)}>
+                                    <FontAwesome name="trash" size={15} style={isDark ? styles.iconTrashDark : styles.iconTrashLight} />
+                                </TouchableRipple>
+                            </View>
+                        </Surface>
+                    )}
+                    ListEmptyComponent={<Text style={isDark ? styles.emptyTextDark : styles.emptyTextLight}>{t('noPhotoNotes')}</Text>}
+                />
+                <Modal
+                    visible={modalVisible}
+                    onDismiss={() => dispatch(setModalVisible(false))}
+                    contentContainerStyle={[styles.modalContainer]}
+                >
+                    <Surface style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
+                        {selectedPhotoTitle && (
+                            <Text style={[styles.modalTitle, isDark ? styles.titleDark : styles.titleLight]}>{selectedPhotoTitle}</Text>
+                        )}
+                        {selectedPhotoUrl && (
+                            <Image
+                                source={{ uri: selectedPhotoUrl }}
+                                style={[styles.modalImage, isDark ? styles.imageDark : styles.imageLight]}
+                                resizeMode="contain"
+                            />
+                        )}
+                        {!selectedPhotoUrl && (
+                            <Text style={[styles.modalTitle, isDark ? styles.emptyTextDark : styles.emptyTextLight]}>
+                                {t('noImageText')}
+                            </Text>
+                        )}
+                        <View style={styles.buttonRow}>
+                            <IconButton
+                                icon="close"
+                                mode="outlined"
+                                onPress={() => dispatch(setModalVisible(false))}
+                                style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
+                                iconColor={isDark ? '#fffbe6' : '#fff'}
+                            />
                         </View>
                     </Surface>
-                )}
-                ListEmptyComponent={<Text style={isDark ? styles.emptyTextDark : styles.emptyTextLight}>{t('noPhotoNotes')}</Text>}
-            />
-            <Modal
-                visible={modalVisible}
-                onDismiss={() => dispatch(setModalVisible(false))}
-                contentContainerStyle={[styles.modalContainer]}
-            >
-                <Surface style={[styles.modalContent, isDark ? styles.modalContentDark : styles.modalContentLight]}>
-                    {selectedPhotoTitle && (
-                        <Text style={[styles.modalTitle, isDark ? styles.titleDark : styles.titleLight]}>{selectedPhotoTitle}</Text>
-                    )}
-                    {selectedPhotoUrl && (
-                        <Image
-                            source={{ uri: selectedPhotoUrl }}
-                            style={[styles.modalImage, isDark ? styles.imageDark : styles.imageLight]}
-                            resizeMode="contain"
-                        />
-                    )}
-                    {!selectedPhotoUrl && (
-                        <Text style={[styles.modalTitle, isDark ? styles.emptyTextDark : styles.emptyTextLight]}>
-                            {t('noImageText')}
-                        </Text>
-                    )}
-                    <View style={styles.buttonRow}>
-                        <IconButton
-                            icon="close"
-                            mode="outlined"
-                            onPress={() => dispatch(setModalVisible(false))}
-                            style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
-                            iconColor={isDark ? '#fffbe6' : '#fff'}
-                        />
-                    </View>
-                </Surface>
-            </Modal>
-            <Modal
-                visible={noteModalVisible}
-                onDismiss={() => dispatch(setNoteModalVisible(false))}
-                contentContainerStyle={[styles.modalContainer]}
-            >
-                <Card style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
-                    {selectedPhotoUrl ? (
-                        <View style={styles.imageContainer}>
-
-                            {/* @ts-ignore: ImageZoom children type issue */}
-                            <ImageZoom
-                                cropWidth={windowWidth - 32}
-                                cropHeight={windowHeight}
-                                imageWidth={windowWidth - 32}
-                                imageHeight={windowHeight}
-                                minScale={1}
-                                maxScale={3}
-                                enableCenterFocus={false}
-                            >
-                                <Image
-                                    source={{ uri: selectedPhotoUrl }}
-                                    style={[styles.image, isDark ? styles.imageDark : styles.imageLight]}
-                                    resizeMode="contain"
-                                />
-                            </ImageZoom>
-                        </View>
-                    ) : (
-                        <Card.Content>
-                            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : styles.modalTitleLight]}>{t('noImageText')}</Text>
-                        </Card.Content>
-                    )}
-                    <Card.Content>
-                        {!editNoteMode ? (
-                            <TouchableRipple onPress={() => setEditNoteMode(true)}>
-                                <Text style={[styles.modalNote, isDark ? styles.modalNoteDark : styles.modalNoteLight]}>
-                                    {selectedPhotoNote || t('placeholderNote')}
-                                </Text>
-                            </TouchableRipple>
+                </Modal>
+                <Modal
+                    visible={noteModalVisible}
+                    onDismiss={() => dispatch(setNoteModalVisible(false))}
+                    contentContainerStyle={[styles.modalContainer]}
+                >
+                    <Card style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
+                        {selectedPhotoUrl ? (
+                            <View style={styles.imageContainer}>
+                                {/* @ts-ignore: ImageZoom children type issue */}
+                                <ImageZoom
+                                    cropWidth={windowWidth - 32}
+                                    cropHeight={windowHeight}
+                                    imageWidth={windowWidth - 32}
+                                    imageHeight={windowHeight}
+                                    minScale={1}
+                                    maxScale={3}
+                                    enableCenterFocus={false}
+                                >
+                                    <Image
+                                        source={{ uri: selectedPhotoUrl }}
+                                        style={[styles.image, isDark ? styles.imageDark : styles.imageLight]}
+                                        resizeMode="contain"
+                                    />
+                                </ImageZoom>
+                            </View>
                         ) : null}
-                        {editNoteMode ? (
-                                <TextInput
-                                    style={[
-                                        styles.textInput,
-                                        isDark ? styles.textInputDark : styles.textInputLight,
-                                        noteFocused
-                                            ? (isDark ? styles.textInputFocusedDark : styles.textInputFocusedLight)
-                                            : (isDark ? styles.textInputUnfocusedDark : styles.textInputUnfocusedLight),
-                                        styles.textInputBottom,
-                                    ]}
-                                    value={selectedPhotoNote || ''}
-                                    onChangeText={(text) => dispatch(updateSelectedPhotoNote(text))}
-                                    multiline={true}
-                                    numberOfLines={4}
-                                    placeholder={t('placeholderNote')}
-                                    placeholderTextColor={isDark ? '#bbb' : '#888'}
-                                    onFocus={() => setNoteFocused(true)}
-                                    onBlur={() => setNoteFocused(false)}
-                                />
-                        ) : null}
+                        <TextInput
+                            style={[
+                                styles.textInput,
+                                isDark ? styles.textInputDark : styles.textInputLight,
+                                noteFocused
+                                    ? (isDark ? styles.textInputFocusedDark : styles.textInputFocusedLight)
+                                    : (isDark ? styles.textInputUnfocusedDark : styles.textInputUnfocusedLight),
+                                styles.textInputBottom,
+                            ]}
+                            value={selectedPhotoNote || ''}
+                            onChangeText={(text) => dispatch(updateSelectedPhotoNote(text))}
+                            multiline={true}
+                            numberOfLines={4}
+                            placeholder={t('placeholderNote')}
+                            placeholderTextColor={isDark ? '#bbb' : '#888'}
+                            onFocus={() => setNoteFocused(true)}
+                            onBlur={() => setNoteFocused(false)}
+                        />
                         <View style={styles.buttonRow}>
                             <IconButton
                                 icon="close"
@@ -364,24 +409,62 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                                 style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
                                 iconColor={isDark ? '#fffbe6' : '#fff'}
                             />
-                            {editNoteMode && (
-                                <IconButton
-                                    icon="check"
-                                    mode="contained"
-                                    onPress={handleSaveNote}
-                                    style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
-                                    iconColor={isDark ? '#fffbe6' : '#fff'}
-                                />
-                            )}
+                            <IconButton
+                                icon="check"
+                                mode="contained"
+                                onPress={handleSaveNote}
+                                style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
+                                iconColor={isDark ? '#fffbe6' : '#fff'}
+                            />
                         </View>
-                    </Card.Content>
-                </Card>
-            </Modal>
-        </Surface>
+                    </Card>
+                </Modal>
+            </Surface>
+        </Host>
     );
 };
 
 const styles = StyleSheet.create({
+    header: {
+        flexDirection: 'row',
+    },
+    titleMoreSpace: {
+        marginLeft: 8,
+        flexShrink: 1,
+    },
+    filterButtonDark: {
+        backgroundColor: '#222',
+    },
+    filterContainerDark: {
+        backgroundColor: '#333',
+    },
+    filterHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    filterContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 8,
+        elevation: 4,
+        alignSelf: 'center',
+    },
+    filterButton: {
+        marginHorizontal: 4,
+        padding: 4,
+        borderRadius: 6,
+        backgroundColor: '#f5f5f5',
+    },
+    filterIconActive: {
+        opacity: 1,
+    },
+    filterIconInactive: {
+        opacity: 0.5,
+    },
+
     container: {
         flex: 1,
         padding: 16,
@@ -417,18 +500,24 @@ const styles = StyleSheet.create({
         padding: 10,
         borderBottomWidth: 1,
         borderBottomColor: '#ccc',
+        position: 'relative',
+        overflow: 'visible',
     },
-    title: {
-        fontSize: 16,
-        flex: 1,
+    notetitle: {
+        fontSize: 12,
+        flex: 3,
+        marginLeft: 10,
     },
     icons: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
-        width: 150,
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 8,
+        width: 80,
+        marginLeft: 2,
     },
     iconButton: {
-        marginHorizontal: 5, // Lisää vaakasuora marginaali
+        marginHorizontal: 2, // Lisää vaakasuora marginaali
     },
     modalContainer: {
         flex: 1,
@@ -612,6 +701,27 @@ const styles = StyleSheet.create({
     },
     iconTrashLight: {
         color: '#d32f2f',
+    },
+    headerSpacer: {
+        height: 40,
+    },
+    notesTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 12,
+        letterSpacing: 0.2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.18,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    notesTitleDark: {
+        color: '#fff',
+    },
+    notesTitleLight: {
+        color: '#222',
     },
 });
 

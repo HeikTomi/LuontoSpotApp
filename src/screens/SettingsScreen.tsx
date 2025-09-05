@@ -1,9 +1,10 @@
 import React from 'react';
-// ...existing code...
+import { View, Text, StyleSheet, useColorScheme } from 'react-native';
 import MapFilterToggle from '../features/settings/MapFilterToggle';
 import { LanguageSelector } from '../components/LanguageSelector';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, useColorScheme } from 'react-native';
+import CustomDrawer from '../components/CustomDrawer';
+import { navigationStyles } from '../styles/navigationStyles';
 
 const SettingsScreen: React.FC = () => {
     const colorScheme = useColorScheme();
@@ -11,8 +12,11 @@ const SettingsScreen: React.FC = () => {
     const { t } = useTranslation();
 
     return (
-        <View style={[styles.container, isDark ? styles.bgDark : styles.bgLight]}>
-            <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>{t('settingsTitle', 'Asetukset')}</Text>
+    <View style={[styles.container, isDark ? navigationStyles.headerDark : navigationStyles.headerLight]}>
+      <View style={styles.drawerIconWrapper}>
+        <CustomDrawer />
+      </View>
+        <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>{t('settingsTitle', 'Asetukset')}</Text>
                         <View style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
                                 <Text style={[styles.cardTitle, styles.center, isDark ? styles.cardTitleDark : styles.cardTitleLight]}>{t('language', 'Kielivalinta')}</Text>
                                 <View style={styles.langWrap}>
@@ -146,6 +150,13 @@ const styles = StyleSheet.create({
     text: {
         fontSize: 20,
         fontWeight: 'bold',
+    },
+    drawerIconWrapper: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        zIndex: 100,
+        backgroundColor: 'transparent',
     },
 });
 

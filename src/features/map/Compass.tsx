@@ -1,25 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Animated, Text } from 'react-native';
-import CompassHeading from 'react-native-compass-heading';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const Compass: React.FC = () => {
-    const [heading, setHeading] = useState(0);
+interface CompassProps { heading: number; }
+const Compass: React.FC<CompassProps> = ({ heading }) => {
     const [prevHeading, setPrevHeading] = useState(0);
     const animatedValue = React.useMemo(() => new Animated.Value(0), []);
-
-    useEffect(() => {
-        const degreeUpdateRate = 3; // Päivitysnopeus (asteina)
-        CompassHeading.start(degreeUpdateRate, (data: any) => {
-            setHeading((old) => {
-                setPrevHeading(old);
-                return data.heading;
-            });
-        });
-        return () => {
-            CompassHeading.stop();
-        };
-    }, []);
 
     useEffect(() => {
         let delta = heading - prevHeading;
@@ -50,7 +36,7 @@ const Compass: React.FC = () => {
                 <Text style={[styles.direction, styles.west]}>W</Text>
                 {/* Nuoli pyörii menosuunnan mukaan */}
                 <Animated.View style={[styles.iconContainer, { transform: [{ rotate }] }]}> 
-                    <MaterialCommunityIcons name="navigation" size={30} color="#4CAF50" />
+                    <MaterialCommunityIcons name="navigation" size={25} color="#4CAF50" />
                 </Animated.View>
             </View>
         </View>
@@ -64,10 +50,10 @@ const styles = StyleSheet.create({
         padding: 10,
     },
     compassContainer: {
-        width: 100,
-        height: 100,
+        width: 80,
+        height: 80,
         borderRadius: 100, // Pallon muoto
-        borderWidth: 3,
+        borderWidth: 2,
         borderColor: '#4CAF50', // Vihreä reunus
         justifyContent: 'center',
         alignItems: 'center',
@@ -80,24 +66,25 @@ const styles = StyleSheet.create({
     },
     direction: {
         position: 'absolute',
-        fontSize: 15,
+        fontSize: 10,
         fontWeight: 'bold',
         color: '#4CAF50',
     },
     north: {
-        top: 10,
+        color: '#a71414ff',
+        top: 5,
         alignSelf: 'center',
     },
     south: {
-        bottom: 10,
+        bottom: 5,
         alignSelf: 'center',
     },
     east: {
-        right: 10,
+        right: 5,
         alignSelf: 'center',
     },
     west: {
-        left: 10,
+        left: 5,
         alignSelf: 'center',
     },
 });

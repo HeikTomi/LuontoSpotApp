@@ -4,6 +4,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import sqliteReducer from '../features/notes/sqliteSlice';
 import photoNoteReducer from '../features/notes/photoNoteSlice';
 import locationReducer from '../features/map/locationSlice';
+import autoFollowReducer from '../features/map/autoFollowSlice';
 
 export const store = configureStore({
   reducer: {
@@ -11,6 +12,7 @@ export const store = configureStore({
     sqlite: sqliteReducer,
     photoNote: photoNoteReducer,
     location: locationReducer,
+    autoFollow: autoFollowReducer,
   },
 });
 

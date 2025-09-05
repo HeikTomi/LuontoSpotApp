@@ -18,7 +18,7 @@ type CameraProps = {
   onTakePhoto: (photoUrl: string) => void;
 };
 
-export const CameraComponent: React.FC<CameraProps> = ({ onTakePhoto }) => {
+export const CameraComponent: React.FC<CameraProps & { navigation: any }> = ({ onTakePhoto, navigation }) => {
   const cameraRef = useRef<Camera>(null);
   const device = useCameraDevice('back');
 
@@ -39,6 +39,9 @@ export const CameraComponent: React.FC<CameraProps> = ({ onTakePhoto }) => {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <FontAwesome name="arrow-left" size={28} color="#fff" />
+      </TouchableOpacity>
       <Camera
         ref={cameraRef}
         style={styles.preview}
@@ -80,7 +83,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ navigation, route })
     navigation.goBack();
   };
 
-  return <CameraComponent onTakePhoto={handleTakePhoto} />;
+  return <CameraComponent onTakePhoto={handleTakePhoto} navigation={navigation} />;
 };
 
 const styles = StyleSheet.create({
@@ -95,17 +98,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   captureContainer: {
-    flex: 0,
+    position: 'absolute',
+    bottom: 32,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    margin: 20,
+    alignItems: 'center',
+    paddingBottom: 0,
+    margin: 0,
   },
   capture: {
-    flex: 0,
     backgroundColor: '#fff',
     borderRadius: 50,
     padding: 15,
     alignSelf: 'center',
-    margin: 20,
+    margin: 0,
+    elevation: 4,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 32,
+    left: 18,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 20,
+    padding: 6,
   },
 });

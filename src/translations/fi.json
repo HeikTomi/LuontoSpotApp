@@ -29,6 +29,10 @@
     "resetPasswordText": "Syötä sähköpostiosoitteesi, niin lähetämme sinulle salasanan nollauslinkin.",
     "slogan": "Löydä luonnon kauneus",
     "notes": "Muistio",
+    "sortDefault": "Järjestä...",
+    "sortNewest": "Uusin ensin",
+    "sortOldest": "Vanhin ensin",
+    "sortNearest": "Lähimmät ensin",
     "addNote": "Lisää muistiinpano",
     "editNote": "Muokkaa muistiinpanoa",
     "deleteNote": "Poista muistiinpano",
@@ -38,5 +42,7 @@
     "aboutDescription": "LuontoSpot on mobiilisovellus luonnon kohteiden löytämiseen ja muistiinpanojen tallentamiseen. Voit lisätä omia havaintojasi, valokuvia ja muistiinpanoja helposti.",
     "contactEmail": "Ota yhteyttä",
     "language": "Kieli",
-    "mapFilters": "Karttasuodattimet"
+    "mapFilters": "Karttasuodattimet",
+    "dateLabel": "Päivämäärä",
+    "distanceLabel": "Etäisyys"
 }
