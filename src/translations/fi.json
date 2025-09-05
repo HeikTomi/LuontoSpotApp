@@ -44,5 +44,7 @@
     "language": "Kieli",
     "mapFilters": "Karttasuodattimet",
     "dateLabel": "Päivämäärä",
-    "distanceLabel": "Etäisyys"
+    "distanceLabel": "Etäisyys",
+    "cancel": "Peruuta",
+    "deleteLabel": "Poista"
 }

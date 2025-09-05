@@ -46,6 +46,7 @@ declare module 'i18next' {
             contactEmail: string;
             dateLabel: string;
             distanceLabel: string;
+            deleteLabel: string
           };
         };
       }

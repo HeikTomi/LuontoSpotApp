@@ -44,6 +44,8 @@
     "language": "Language",
     "mapFilters": "Map filters",
     "dateLabel": "Date",
-    "distanceLabel": "Distance"
+    "distanceLabel": "Distance",
+    "cancel": "Cancel",
+    "deleteLabel": "Delete"
 
 }

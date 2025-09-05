@@ -26,9 +26,10 @@ interface ListTagProps {
     locations: any[];
     isDark: boolean;
     userLocation?: { latitude: number; longitude: number };
+    onRequestLocation?: () => void;
 }
 
-const ListTag: React.FC<ListTagProps> = ({ item, locations, isDark, userLocation }) => {
+const ListTag: React.FC<ListTagProps> = ({ item, locations, isDark, userLocation, onRequestLocation }) => {
     const [showBubble, setShowBubble] = useState(false);
     const [bubblePos, setBubblePos] = useState<{x: number, y: number} | null>(null);
     const iconRef = useRef<View>(null);
@@ -67,6 +68,9 @@ const ListTag: React.FC<ListTagProps> = ({ item, locations, isDark, userLocation
         );
     }
     const handleIconPress = () => {
+        if (onRequestLocation) {
+            onRequestLocation();
+        }
         if (!showBubble) {
             // Mitataan ikonin sijainti ruudulla
             if (iconRef.current) {

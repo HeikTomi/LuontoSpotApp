@@ -450,3 +450,6 @@ const styles = StyleSheet.create({
 });
 
 export default MapScreen;
+
+// TODO: Näytä käyttäjälle GPS:n ilmoittama tarkkuus (accuracy) kartalla, esim. tekstinä tai ympyränä sijainnin ympärillä.
+// Tämä auttaa käyttäjää arvioimaan sijainnin luotettavuutta erityisesti sisätiloissa ja liikkuessa.

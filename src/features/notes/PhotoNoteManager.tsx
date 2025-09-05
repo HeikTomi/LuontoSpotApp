@@ -1,5 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import React, { useEffect, useCallback, useState } from 'react';
+import Geolocation from '@react-native-community/geolocation';
 import { StyleSheet, FlatList, Alert, Image, View, TextInput, useColorScheme, Dimensions } from 'react-native';
 import { Surface, Text, TouchableRipple, Modal, IconButton, Card } from 'react-native-paper';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -36,13 +37,28 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
 
     const locations = useAppSelector((state) => state.location.locations);
     const notes = useAppSelector((state) => state.sqlite.items);
-    // Valitse automaattisesti viimeisin location id
-    //const selectedLocationId = locations.length > 0 ? locations[locations.length - 1].id : null;
-    // Käyttäjän sijainti (voit vaihtaa logiikan tarpeen mukaan)
-    const userLocation = locations.length > 0 ? {
-        latitude: locations[locations.length - 1].latitude,
-        longitude: locations[locations.length - 1].longitude,
-    } : undefined;
+    // Käyttäjän reaaliaikainen GPS-sijainti
+    const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
+
+    useEffect(() => {
+        const watchId = Geolocation.watchPosition(
+            (position) => {
+                setUserLocation({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                });
+            },
+            (error) => {
+                console.warn('GPS-paikannus epäonnistui:', error);
+            },
+            { enableHighAccuracy: true, distanceFilter: 5, interval: 2000 }
+        );
+        return () => {
+            if (typeof watchId === 'number') {
+                Geolocation.clearWatch(watchId);
+            }
+        };
+    }, []);
     const fetchNoteLocation = (noteId: number) => {
         console.log('DEBUG notes:', notes);
         console.log('DEBUG locations:', locations);
@@ -105,6 +121,22 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
     // Filter-ikonien tyylit
     const filterIconSize = 20;
 
+    // Hae käyttäjän sijainti pyynnöstä (esim. Picker tai ListTag)
+    const getCurrentLocation = () => {
+        Geolocation.getCurrentPosition(
+            (position) => {
+                setUserLocation({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                });
+            },
+            (error) => {
+                console.warn('GPS-paikannus epäonnistui:', error);
+            },
+            { enableHighAccuracy: true }
+        );
+    };
+
     // Suodatettu ja lajiteltu lista
     let filteredItems = items.filter((item: any) => {
         const location = locations.find((l: any) => l.noteId === item.id);
@@ -120,7 +152,9 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
         filteredItems.sort((a, b) => {
             const locA = locations.find((l: any) => l.noteId === a.id);
             const locB = locations.find((l: any) => l.noteId === b.id);
-            if (!locA || !locB) return 0;
+            if (!locA || !locB) {
+                return 0;
+            }
             const distA = getDistance(userLocation.latitude, userLocation.longitude, locA.latitude, locA.longitude);
             const distB = getDistance(userLocation.latitude, userLocation.longitude, locB.latitude, locB.longitude);
             return distA - distB;
@@ -148,6 +182,11 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
 
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
+
+    // Pickerin dynaamiset värit (isDark jälkeen)
+    const pickerTextColor = isDark ? '#fff' : '#222';
+    //const pickerBgColor = isDark ? '#222' : '#fff';
+    const pickerBorderColor = isDark ? '#444' : '#bbb';
 
     // Lataa tietokannan tiedot
     const loadItems = useCallback(() => {
@@ -202,8 +241,8 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
             t('deleteTitle'),
             t('deleteText'),
             [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => {
+                { text: t('cancel'), style: 'cancel' },
+                { text: t('deleteLabel'), style: 'destructive', onPress: () => {
                     dispatch(deleteItem(id))
                         .then(() => loadItems())
                         .catch((error) => console.error('Error deleting photo note:', error));
@@ -270,25 +309,27 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                         selectedValue={sortType}
                         style={{
                             width: 140,
-                            color: isDark ? '#fff' : '#222',
-                            backgroundColor: isDark ? '#222' : '#fff',
                             marginLeft: 8,
                             borderRadius: 8,
                             height: 36,
                             borderWidth: 1,
-                            borderColor: isDark ? '#444' : '#bbb',
+                            borderColor: pickerBorderColor,
                         }}
-                        dropdownIconColor={isDark ? '#fff' : '#222'}
-                        itemStyle={{ color: isDark ? '#fff' : '#222', backgroundColor: isDark ? '#222' : '#fff' }}
-                        onValueChange={(itemValue: 'distance' | 'newest' | 'oldest') => setSortType(itemValue)}
+                        dropdownIconColor={pickerTextColor}
+                        onValueChange={(itemValue: 'distance' | 'newest' | 'oldest') => {
+                            setSortType(itemValue);
+                            if (itemValue === 'distance') {
+                                getCurrentLocation();
+                            }
+                        }}
                         mode="dropdown"
                     >
                         <Picker.Item label={t('sortDefault', 'Järjestä...')} value="" color={isDark ? '#bbb' : '#888'} />
-                        <Picker.Item label={t('sortNewest', 'Uusin ensin')} value="newest" />
-                        <Picker.Item label={t('sortOldest', 'Vanhin ensin')} value="oldest" />
-                        <Picker.Item label={t('sortNearest', 'Lähimmät ensin')} value="distance" />
+                        <Picker.Item label={t('sortNewest', 'Uusin ensin')} value="newest" color={pickerTextColor} />
+                        <Picker.Item label={t('sortOldest', 'Vanhin ensin')} value="oldest" color={pickerTextColor} />
+                        <Picker.Item label={t('sortNearest', 'Lähimmät ensin')} value="distance" color={pickerTextColor} />
                     </Picker>
-                    <View style={[styles.filterContainer, isDark && styles.filterContainerDark]}> 
+                    <View style={[styles.filterContainer, isDark && styles.filterContainerDark]}>
                         <TouchableRipple onPress={() => setShowMushroom((v) => !v)} style={[styles.filterButton, isDark && styles.filterButtonDark]}>
                             <Icon name="mushroom" size={filterIconSize} color={showMushroom ? (isDark ? '#FFD39B' : '#8D4F2A') : (isDark ? '#888' : '#bbb')} style={showMushroom ? styles.filterIconActive : styles.filterIconInactive} />
                         </TouchableRipple>
@@ -305,7 +346,7 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={({ item }) => (
                         <Surface style={[styles.listItem, isDark ? styles.listItemDark : styles.listItemLight]}>
-                            <ListTag item={item} locations={locations} isDark={isDark} userLocation={userLocation} />
+                            <ListTag item={item} locations={locations} isDark={isDark} userLocation={userLocation} onRequestLocation={getCurrentLocation} />
                             <Text style={[styles.notetitle, isDark ? styles.titleDark : styles.titleLight, styles.titleMoreSpace]}>{item.name}</Text>
                             <View style={styles.icons}>
                                 <TouchableRipple style={styles.iconButton} onPress={() => handleTakePhoto(item.id)}>
