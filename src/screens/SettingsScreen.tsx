@@ -1,7 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet, useColorScheme } from 'react-native';
-import MapFilterToggle from '../features/settings/MapFilterToggle';
-import { LanguageSelector } from '../components/LanguageSelector';
 import { useTranslation } from 'react-i18next';
 import CustomDrawer from '../components/CustomDrawer';
 import { navigationStyles } from '../styles/navigationStyles';
@@ -16,33 +14,18 @@ const SettingsScreen: React.FC = () => {
       <View style={styles.drawerIconWrapper}>
         <CustomDrawer />
       </View>
-        <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>{t('settingsTitle', 'Asetukset')}</Text>
-                        <View style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
-                                <Text style={[styles.cardTitle, styles.center, isDark ? styles.cardTitleDark : styles.cardTitleLight]}>{t('language', 'Kielivalinta')}</Text>
-                                <View style={styles.langWrap}>
-                                    <LanguageSelector />
-                                </View>
-                        </View>
-            <View style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
-                <Text style={[styles.cardTitle, styles.center, isDark ? styles.cardTitleDark : styles.cardTitleLight]}>{t('mapFilters', 'Karttasuodattimet')}</Text>
-                <MapFilterToggle />
-            </View>
+                <Text style={[styles.text, isDark ? styles.textDark : styles.textLight]}>{t('settingsTitle', 'Tietoja')}</Text>
             <View style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
                 <Text style={[styles.cardTitle, styles.center, isDark ? styles.cardTitleDark : styles.cardTitleLight]}>{t('aboutTitle', 'Tietoa sovelluksesta')}</Text>
                 <Text style={[styles.aboutText, isDark ? styles.aboutTextDark : styles.aboutTextLight]}>{t('aboutDescription', 'LuontoSpotApp on luonnon löytöjen ja muistiinpanojen mobiilisovellus.')}</Text>
                 <Text style={[styles.aboutContact, isDark ? styles.aboutContactDark : styles.aboutContactLight]}>{t('contactEmail', 'Yhteys')}: heikkinentomi@hotmail.com</Text>
+                <Text style={[styles.aboutContact, isDark ? styles.aboutContactDark : styles.aboutContactLight]}>{t('website', 'Verkkosivu')}: tphdigital.tech</Text>
             </View>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    langWrap: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginVertical: 8,
-    },
     center: {
         textAlign: 'center',
     },

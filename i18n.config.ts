@@ -14,9 +14,9 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: 'en', // Oletuskieli
-    fallbackLng: 'en', // Varmistetaan, että käännökset toimivat, vaikka avain puuttuisi
-    debug: true, // Näytä debug-tiedot konsolissa (virheiden jäljittämiseksi)
+    lng: 'fi', // Oletuskieli
+    fallbackLng: 'fi',
+    debug: false,
     interpolation: {
       escapeValue: false, // React käsittelee XSS-suojauksen automaattisesti
     },

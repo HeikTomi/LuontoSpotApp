@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Image, ActivityIndicator, Alert, useColorScheme, TouchableOpacity, Text, TextInput, Modal } from 'react-native';
+import { View, StyleSheet, Image, ActivityIndicator, Alert, useColorScheme, TouchableOpacity, Text, TextInput, Modal, PanResponder, Dimensions } from 'react-native';
 import ImageZoom from 'react-native-image-pan-zoom';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import UserLocationMarker from './UserLocationMarker';
@@ -12,7 +12,7 @@ import { useDispatch } from 'react-redux';
 import { deleteItem } from '../notes/sqliteSlice';
 import { addItem } from '../notes/sqliteSlice';
 import { initializeDb, fetchItems } from '../notes/sqliteSlice';
-import { fetchTileImage } from '../../services/mml/mmlApi';
+import { fetchTileImageByIndices } from '../../services/mml/mmlApi';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { updateItem } from '../notes/sqliteSlice';
@@ -40,6 +40,7 @@ interface MapComponentProps {
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLevel, autoFollowOnStart, filters }) => {
+    const initialWindow = Dimensions.get('window');
     // TODO: Puheentunnistus noten syöttöön
     // - Ensimmäinen sana puheesta otsikoksi, loput muistioksi
     // - Käytä esim. react-native-voice
@@ -97,7 +98,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
 
     const { t } = useTranslation();
     const notes = useSelector((state: RootState) => state.sqlite.items); // Moved to the top
-    const [editNoteId, setEditNoteId] = useState<number | null>(null);
+    const [editNoteId, _setEditNoteId] = useState<number | null>(null);
     const noteObj = notes && editNoteId ? notes.find((n) => n.id === editNoteId) : null; // Moved to the top
     const [noteTitle, setNoteTitle] = useState('');
     const [noteModalVisible, setNoteModalVisible] = useState(false);
@@ -118,14 +119,6 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
         } else {
             setActiveMarkerId(loc.id);
         }
-    };
-
-    const handleAddNotePress = (loc: Location) => {
-    // Add note icon pressed for marker and modal should open
-        setNoteLocationId(loc.id);
-        setNoteText('');
-        setNoteTitle('');
-        setNoteModalVisible(true);
     };
 
     const handleSaveNote = async () => {
@@ -156,22 +149,6 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
         setNoteLocationId(null);
     };
 
-    const handleEditNotePress = (loc: Location) => {
-        dispatch(fetchItems()); // Varmista että notes päivittyy
-        console.log('handleEditNotePress', { loc, notes });
-        const foundNote = notes.find((n) => n.id === loc.noteId);
-        console.log('foundNote', foundNote);
-        if (foundNote) {
-            setEditNoteTitle(foundNote.name);
-            setEditNoteText(foundNote.note || '');
-            setEditNoteId(foundNote.id);
-            setEditModalVisible(true);
-        } else {
-            // Optionally show modal for empty note
-            // setEditModalVisible(true);
-        }
-    };
-
     const handleSaveEditNote = () => {
         if (editNoteId && editNoteTitle.trim()) {
             dispatch(updateItem({ id: editNoteId, note: editNoteText, name: editNoteTitle }));
@@ -198,9 +175,13 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
     setActiveMarkerId(null);
     };
     // Headingin re-render pakotus poistettu, käytetään suoraan location.heading ja yaw
-    const [tileImage, setTileImage] = useState<string | null>(null);
+    const [tileImages, setTileImages] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
     const [tileIndices, setTileIndices] = useState<{ tileX: number; tileY: number } | null>(null);
+    const [mapSize, setMapSize] = useState({ width: Math.max(256, Math.round(initialWindow.width)), height: Math.max(256, Math.round(initialWindow.height)) });
+    const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+    const [lastMissingTileCount, setLastMissingTileCount] = useState(0);
+    const [hasShownTileError, setHasShownTileError] = useState(false);
     const locations = useSelector((state: RootState) => state.location.locations);
     // Haetaan notes PhotoNotes-taulusta
     const colorScheme = useColorScheme();
@@ -234,27 +215,95 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
         if (!mapLocation) { return; }
         const { latitude, longitude } = mapLocation;
         const { tileX, tileY } = calculateTileIndices(latitude, longitude, zoomLevel);
+        console.log('[MapComponent] Center tile indices updated', { tileX, tileY, zoomLevel, latitude, longitude });
         setTileIndices({ tileX, tileY });
+        setPanOffset({ x: 0, y: 0 });
     }, [mapLocation, zoomLevel]);
 
-    // Päivitä tileImage aina kun location muuttuu
+    const panResponder = React.useMemo(() => PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderMove: (_, gestureState) => setPanOffset({ x: gestureState.dx, y: gestureState.dy }),
+        onPanResponderRelease: (_, gestureState) => setPanOffset({ x: gestureState.dx, y: gestureState.dy }),
+    }), []);
+
+    // Lataa kartan ympärille alkuperäisen kokoiset WMTS-tilet.
     useEffect(() => {
-        if (!mapLocation) { return; }
+        if (!tileIndices) { return; }
+        let cancelled = false;
+
         const fetchMapData = async () => {
-            const { latitude, longitude } = mapLocation;
             try {
-                setLoading(true);
-                const imageUri = await fetchTileImage(latitude, longitude, zoomLevel);
-                setTileImage(imageUri);
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(true);
+                }
+                const viewportWidth = mapSize.width || 256;
+                const viewportHeight = mapSize.height || 256;
+                const radiusX = Math.ceil(viewportWidth / 512) + 1;
+                const radiusY = Math.ceil(viewportHeight / 512) + 1;
+                const requests: Promise<[string, string]>[] = [];
+                for (let y = tileIndices.tileY - radiusY; y <= tileIndices.tileY + radiusY; y += 1) {
+                    for (let x = tileIndices.tileX - radiusX; x <= tileIndices.tileX + radiusX; x += 1) {
+                        const key = `${x}:${y}:${zoomLevel}`;
+                        if (!tileImages[key]) {
+                            requests.push(fetchTileImageByIndices(x, y, zoomLevel).then((uri) => [key, uri]));
+                        }
+                    }
+                }
+
+                console.log('[MapComponent] Fetching missing tiles', {
+                    zoomLevel,
+                    centerTileX: tileIndices.tileX,
+                    centerTileY: tileIndices.tileY,
+                    radiusX,
+                    radiusY,
+                    missingTileCount: requests.length,
+                });
+                setLastMissingTileCount(requests.length);
+
+                if (requests.length === 0) {
+                    if (!cancelled) {
+                        setLoading(false);
+                    }
+                    return;
+                }
+
+                const settled = await Promise.allSettled(requests);
+                const loadedTiles = settled
+                    .filter((result): result is PromiseFulfilledResult<[string, string]> => result.status === 'fulfilled')
+                    .map((result) => result.value);
+
+                if (!cancelled && loadedTiles.length > 0) {
+                    setTileImages((previous) => ({ ...previous, ...Object.fromEntries(loadedTiles) }));
+                    setHasShownTileError(false);
+                }
+
+                const failedCount = settled.length - loadedTiles.length;
+                if (!cancelled && failedCount > 0 && loadedTiles.length === 0 && Object.keys(tileImages).length === 0 && !hasShownTileError) {
+                    Alert.alert('Error', 'Failed to load map tile.');
+                    setHasShownTileError(true);
+                }
+
+                if (!cancelled) {
+                    setLoading(false);
+                }
             } catch (error) {
                 console.error('Error fetching map data:', error);
-                Alert.alert('Error', 'Failed to load map tile.');
-                setLoading(false);
+                if (!hasShownTileError && Object.keys(tileImages).length === 0) {
+                    Alert.alert('Error', 'Failed to load map tile.');
+                    setHasShownTileError(true);
+                }
+                if (!cancelled) {
+                    setLoading(false);
+                }
             }
         };
         fetchMapData();
-    }, [mapLocation, zoomLevel]);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [tileIndices, zoomLevel, mapSize.width, mapSize.height, tileImages, hasShownTileError]);
 
     // Lasketaan käyttäjän sijaintimarkkerin sijainti suhteessa karttatileseen
     const calculateMarkerPosition = (latitude: number, longitude: number, tileX: number, tileY: number, zLevel: number) => {
@@ -289,17 +338,13 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
         if (!tileIndices) { return null; }
         const allFiltersOn = !filters || (filters.mushroom && filters.berry && filters.star);
         const filteredLocations = locations.filter((loc) => {
+            if (loc.tagType !== 'Sieni') { return false; }
             const { tileX, tileY } = calculateTileIndices(loc.latitude, loc.longitude, zoomLevel);
             // Jos filtterit ovat kokonaan pois päältä (kaikki false) TAI kaikki päällä, näytetään kaikki markerit
             if ( allFiltersOn) {
                 return tileX === tileIndices.tileX && tileY === tileIndices.tileY;
             }
-            // Muussa tapauksessa filtteröi tagType
-            if (filters) {
-                if (loc.tagType === 'Sieni' && !filters.mushroom) { return false; }
-                if (loc.tagType === 'Marja' && !filters.berry) { return false; }
-                if (loc.tagType === 'Mielenkiinto' && !filters.star) { return false; }
-            }
+            if (filters && !filters.mushroom) { return false; }
             return tileX === tileIndices.tileX && tileY === tileIndices.tileY;
         });
         return filteredLocations.map((loc) => {
@@ -311,8 +356,6 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
                 zoomLevel
             );
             const isActive = activeMarkerId === loc.id;
-            // Etsi note vain noteId:llä
-            const hasNote = loc.noteId != null && loc.noteId !== 0;
             return (
                 <View
                     key={loc.id}
@@ -326,26 +369,8 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
                                 {loc.tagType === 'Mielenkiinto' && <MaterialCommunityIcons name="star" size={28} style={styles.markerIconMielenkiinto} />}
                             </View>
                             <View style={styles.markerActions} pointerEvents="box-none">
-                                {isActive && hasNote ? (
+                                {isActive ? (
                                     <>
-                                        <View style={styles.actionButtonWrapper}>
-                                            <View style={styles.actionButton}>
-                                                <MaterialCommunityIcons name="pencil" size={20} color="#fff" onPress={() => handleEditNotePress(loc)} />
-                                            </View>
-                                        </View>
-                                        <View style={styles.actionButtonWrapper}>
-                                            <View style={styles.actionButtonDelete}>
-                                                <MaterialCommunityIcons name="trash-can" size={20} color="#fff" onPress={() => handleDeletePress(loc)} />
-                                            </View>
-                                        </View>
-                                    </>
-                                ) : isActive && !hasNote ? (
-                                    <>
-                                        <View style={styles.actionButtonWrapper}>
-                                            <View style={styles.actionButton}>
-                                                <MaterialCommunityIcons name="plus" size={20} color="#fff" onPress={() => handleAddNotePress(loc)} />
-                                            </View>
-                                        </View>
                                         <View style={styles.actionButtonWrapper}>
                                             <View style={styles.actionButtonDelete}>
                                                 <MaterialCommunityIcons name="trash-can" size={20} color="#fff" onPress={() => handleDeletePress(loc)} />
@@ -361,39 +386,79 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
         });
     };
 
-    if (loading || !tileIndices) {
-        return (
-            <View style={styles.loader}>
-                <ActivityIndicator size="large" color="#4CAF50" />
-            </View>
-        );
-    }
+    const viewportWidth = mapSize.width || 256;
+    const viewportHeight = mapSize.height || 256;
 
-    const markerPosition = mapLocation
+    const markerPosition = mapLocation && tileIndices
         ? calculateMarkerPosition(
               mapLocation.latitude,
               mapLocation.longitude,
               tileIndices.tileX,
               tileIndices.tileY,
               zoomLevel
-          )
+            )
         : { x: 0, y: 0 };
+        const tileRadiusX = Math.ceil(viewportWidth / 512) + 1;
+        const tileRadiusY = Math.ceil(viewportHeight / 512) + 1;
 
 
     return (
-        <View style={[styles.container, isDark ? styles.bgDark : styles.bgLight]}>
-            {/* Online/offline indikaattori siirretään OnlineIndicator-komponenttiin */}
-            <Image source={tileImage ? { uri: tileImage } : undefined} style={styles.mapImage} />
-            {renderMarkers()}
-            {/* Oma lokaatiomarkkeri tagin päällä, mutta tagi klikattavissa */}
-            {location && (
-
-                <UserLocationMarker
-                    x={markerPosition.x}
-                    y={markerPosition.y}
-                    heading={heading}
-                    isDark={isDark}
-                />
+        <View
+            style={[styles.container, isDark ? styles.bgDark : styles.bgLight]}
+            onLayout={(event) => {
+                const width = Math.round(event.nativeEvent.layout.width);
+                const height = Math.round(event.nativeEvent.layout.height);
+                if (width !== mapSize.width || height !== mapSize.height) {
+                    console.log('[MapComponent] Map layout measured', { width, height });
+                    setMapSize({ width, height });
+                }
+            }}
+            {...panResponder.panHandlers}
+        >
+            <View style={styles.tileLayer}>
+                {tileIndices && Array.from({ length: tileRadiusY * 2 + 1 }).flatMap((_, row) =>
+                    Array.from({ length: tileRadiusX * 2 + 1 }).map((__, column) => {
+                        const tileX = tileIndices.tileX - tileRadiusX + column;
+                        const tileY = tileIndices.tileY - tileRadiusY + row;
+                        const tileUri = tileImages[`${tileX}:${tileY}:${zoomLevel}`];
+                        return tileUri ? (
+                            <Image
+                                key={`${tileX}:${tileY}`}
+                                source={{ uri: tileUri }}
+                                style={[styles.tileImage, {
+                                    left: viewportWidth / 2 - 128 + (tileX - tileIndices.tileX) * 256 + panOffset.x,
+                                    top: viewportHeight / 2 - 128 + (tileY - tileIndices.tileY) * 256 + panOffset.y,
+                                }]}
+                            />
+                        ) : null;
+                    })
+                )}
+            </View>
+            <View style={[styles.markerLayer, { left: viewportWidth / 2 - 128 + panOffset.x, top: viewportHeight / 2 - 128 + panOffset.y }]}>
+                {renderMarkers()}
+                {location && (
+                    <UserLocationMarker
+                        x={markerPosition.x}
+                        y={markerPosition.y}
+                        heading={heading}
+                        isDark={isDark}
+                    />
+                )}
+            </View>
+            {(!tileIndices || (loading && Object.keys(tileImages).length === 0)) && (
+                <View style={styles.loaderOverlay}>
+                    <ActivityIndicator size="large" color="#4CAF50" />
+                </View>
+            )}
+            {__DEV__ && (
+                <View style={styles.debugPanel} pointerEvents="none">
+                    <Text style={styles.debugText}>
+                        {`tiles=${Object.keys(tileImages).length} missing=${lastMissingTileCount} zoom=${zoomLevel}`}
+                    </Text>
+                    <Text style={styles.debugText}>
+                        {`center=${tileIndices ? `${tileIndices.tileX},${tileIndices.tileY}` : 'n/a'} size=${viewportWidth}x${viewportHeight}`}
+                    </Text>
+                </View>
             )}
             {noteModalVisible && (
                 <View style={styles.noteModalOverlay}>
@@ -457,7 +522,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ location, heading, zoomLeve
                                 const maxWidth = 250;
                                 const maxHeight = 200;
                                 return (
-                                    <View style={[styles.imageZoomContainer, styles.imageZoomContainerCustom]}> 
+                                    <View style={[styles.imageZoomContainer, styles.imageZoomContainerCustom]}>
                                         {React.createElement(
                                             ImageZoom as any,
                                             {
@@ -779,12 +844,12 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#1c7e03ff',
+        backgroundColor: '#F2C94C',
         justifyContent: 'center',
         alignItems: 'center',
     },
     markerIconSieni: {
-        color: 'white',
+        color: '#2A2A2A',
     },
     markerIconMarja: {
         color: 'white',
@@ -814,14 +879,48 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     mapImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 10,
+        width: 256,
+        height: 256,
+    },
+    tileLayer: {
+        ...StyleSheet.absoluteFillObject,
+        overflow: 'hidden',
+    },
+    tileImage: {
+        position: 'absolute',
+        width: 256,
+        height: 256,
+    },
+    markerLayer: {
+        position: 'absolute',
+        width: 256,
+        height: 256,
     },
     loader: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    loaderOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        zIndex: 15,
+    },
+    debugPanel: {
+        position: 'absolute',
+        left: 8,
+        bottom: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        borderRadius: 6,
+        backgroundColor: 'rgba(0,0,0,0.65)',
+        zIndex: 20,
+    },
+    debugText: {
+        color: '#fff',
+        fontSize: 11,
     },
     userLocation: {
         position: 'absolute',

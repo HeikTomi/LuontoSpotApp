@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { navigationStyles } from '../styles/navigationStyles';
-import { MAP_FILTER_KEY } from '../features/settings/MapFilterToggle';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, StyleSheet, Alert, useColorScheme, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Alert, useColorScheme, TouchableOpacity, Text } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import CompassHeading from 'react-native-compass-heading';
 import { RouteProp, ParamListBase } from '@react-navigation/native';
 import { RootStackParamList } from '../../App';
 import MapComponent from '../features/map/MapComponent';
-import Filters from '../features/map/Filters';
 import Compass from '../features/map/Compass';
 import OnlineIndicator from '../features/map/OnlineIndicator';
 import TagButton from '../features/map/TagButton';
@@ -27,17 +25,71 @@ interface MapScreenProps {
   autoFollowOnStart?: boolean;
 }
 
+const DEFAULT_MAP_ZOOM = 15;
+const MIN_MAP_ZOOM = 0;
+const MAX_MAP_ZOOM = 18;
+
+const MML_COVERAGE_BOUNDS = {
+    minLat: 58.5,
+    maxLat: 71.5,
+    minLon: 19.0,
+    maxLon: 32.5,
+};
+
+const MML_FALLBACK_LOCATION = {
+    latitude: 60.1699,
+    longitude: 24.9384,
+    heading: null,
+};
+
+const isWithinMmlCoverage = (latitude: number, longitude: number): boolean => {
+    return (
+        latitude >= MML_COVERAGE_BOUNDS.minLat &&
+        latitude <= MML_COVERAGE_BOUNDS.maxLat &&
+        longitude >= MML_COVERAGE_BOUNDS.minLon &&
+        longitude <= MML_COVERAGE_BOUNDS.maxLon
+    );
+};
+
 export const MapScreen: React.FC<MapScreenProps> = ({ route, autoFollowOnStart }) => {
     const navigation = require('@react-navigation/native').useNavigation();
     const [heading, setHeading] = useState(0);
     const dispatch = useDispatch();
     const isAutoFollow = useSelector((state: RootState) => state.autoFollow.enabled);
     const [location, setLocation] = useState<{ latitude: number; longitude: number; heading: number | null } | null>(null);
+    const [zoomLevel, setZoomLevel] = useState(DEFAULT_MAP_ZOOM);
     // Tallennetaan notesista tullut location, jos sellainen on
     const [pendingNoteLocation, setPendingNoteLocation] = useState<{ latitude: number; longitude: number; heading: number | null } | null>(null);
+
+    const requestCurrentLocation = React.useCallback((label: string) => {
+        Geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude, heading: coordsHeading } = position.coords;
+                if (!isWithinMmlCoverage(latitude, longitude)) {
+                    console.warn('[MapScreen] Location outside MML coverage, falling back to Helsinki', {
+                        label,
+                        latitude,
+                        longitude,
+                        fallback: MML_FALLBACK_LOCATION,
+                    });
+                    setLocation(MML_FALLBACK_LOCATION);
+                    return;
+                }
+
+                console.log('[MapScreen] Current location resolved', { label, latitude, longitude, coordsHeading });
+                setLocation({ latitude, longitude, heading: coordsHeading });
+            },
+            (error) => {
+                console.warn('[MapScreen] Current location failed', { label, code: error.code, message: error.message });
+                setLocation((current) => current ?? MML_FALLBACK_LOCATION);
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+    }, []);
     // Hae käyttäjän sijainti kerran mountissa, jotta kartta saa locationin
     // Jos tullaan notesista, location-parametri asetetaan, muuten haetaan käyttäjän sijainti
     useEffect(() => {
+        let retryTimeout: ReturnType<typeof setTimeout> | null = null;
         (async () => {
             const locationFromMap = await AsyncStorage.getItem('locationFromMap');
             if (
@@ -50,76 +102,31 @@ export const MapScreen: React.FC<MapScreenProps> = ({ route, autoFollowOnStart }
                 setLocation(route.params.location);
                 console.log('Initial location set from notes:', route.params.location);
             } else {
-                Geolocation.getCurrentPosition(
-                    (position) => {
-                        const { latitude, longitude, heading: coordsHeading } = position.coords;
-                        setLocation({ latitude, longitude, heading: coordsHeading });
-                        // Initial user location fetched
-                    },
-                    (error) => {
-                        console.error('Error fetching initial location:', error);
-                    },
-                    { enableHighAccuracy: true }
-                );
+                // Kun ei tulla valitusta koordinaatista, pidä live-seuranta oletuksena päällä.
+                dispatch(setAutoFollow(true));
+                requestCurrentLocation('initial');
+                retryTimeout = setTimeout(() => {
+                    setLocation((current) => {
+                        if (!current) {
+                            requestCurrentLocation('initial-retry');
+                        }
+                        return current;
+                    });
+                }, 3000);
             }
         })();
-    }, [route]);
-    // Filtteritila
-    const [filters, setFilters] = useState({
+
+        return () => {
+            if (retryTimeout) {
+                clearTimeout(retryTimeout);
+            }
+        };
+    }, [route, dispatch, requestCurrentLocation]);
+    const markerVisibility = {
         mushroom: true,
-        berry: true,
-        star: true,
-    });
-    // Filtterien päällä/pois tila
-    const [filterEnabled, setFilterEnabled] = useState(false);
-
-    // Lue filterEnabled AsyncStoragesta mountissa
-    useEffect(() => {
-        (async () => {
-            try {
-                const val = await AsyncStorage.getItem(MAP_FILTER_KEY);
-                if (val !== null) {
-                    setFilterEnabled(val === 'true');
-                }
-            } catch (e) {
-                console.log('MapScreen filterEnabled load error', e);
-            }
-        })();
-    }, []);
-
-    // Päivitä filterEnabled jos asetusta muutetaan muualla
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            const val = await AsyncStorage.getItem(MAP_FILTER_KEY);
-            if (val !== null) {
-                setFilterEnabled(val === 'true');
-            }
-        }, 1000);
-        return () => clearInterval(interval);
-    }, []);
-
-    // Logitus filterEnabled-tilan muutokseen
-    useEffect(() => {
-        console.log('filterEnabled:', filterEnabled);
-    }, [filterEnabled]);
-
-    // Lataa filtterit AsyncStoragesta mountissa
-    useEffect(() => {
-        (async () => {
-            try {
-                const mushroom = await AsyncStorage.getItem('filter_mushroom');
-                const berry = await AsyncStorage.getItem('filter_berry');
-                const star = await AsyncStorage.getItem('filter_star');
-                setFilters({
-                    mushroom: mushroom !== 'false',
-                    berry: berry !== 'false',
-                    star: star !== 'false',
-                });
-            } catch (e) {
-                console.log('MapScreen filter load error', e);
-            }
-        })();
-    }, []);
+        berry: false,
+        star: false,
+    };
 
 
     useEffect(() => {
@@ -259,6 +266,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({ route, autoFollowOnStart }
             Alert.alert('Error', 'Failed to save location.');
         }
     };
+
+    const handleZoomIn = () => {
+        setZoomLevel((prev) => Math.min(prev + 1, MAX_MAP_ZOOM));
+    };
+
+    const handleZoomOut = () => {
+        setZoomLevel((prev) => Math.max(prev - 1, MIN_MAP_ZOOM));
+    };
     /*
     const handleResetNotesTable = async () => {
         try {
@@ -320,21 +335,30 @@ export const MapScreen: React.FC<MapScreenProps> = ({ route, autoFollowOnStart }
         <MapComponent
           location={location}
           heading={heading}
-          zoomLevel={15}
+                    zoomLevel={zoomLevel}
           autoFollowOnStart={isAutoFollow}
-          filters={filterEnabled ? { ...filters } : { mushroom: true, berry: true, star: true }}
+                    filters={markerVisibility}
         />
-        {/* Filters-komponentti kartan oikeassa alareunassa */}
-        {filterEnabled && (
-          <View style={styles.filtersWrapper}>
-            <Filters filters={filters} onChange={setFilters} />
-          </View>
-        )}
+                <View style={styles.zoomControlsWrapper}>
+                    <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn} activeOpacity={0.85}>
+                        <Text style={styles.zoomButtonText}>+</Text>
+                    </TouchableOpacity>
+                    <View style={styles.zoomBadge}>
+                        <Text style={styles.zoomBadgeText}>{`${zoomLevel >= DEFAULT_MAP_ZOOM ? '+' : ''}${zoomLevel - DEFAULT_MAP_ZOOM}`}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut} activeOpacity={0.85}>
+                        <Text style={styles.zoomButtonText}>-</Text>
+                    </TouchableOpacity>
+                </View>
       </View>
       <View style={[styles.tagContainer, isDark ? styles.tagContainerDark : styles.tagContainerLight]}>
-        <TagButton iconName="mushroom" onPress={() => handleTagPress('Sieni')} />
-        <TagButton iconName="fruit-grapes" onPress={() => handleTagPress('Marja')} />
-        <TagButton iconName="star" onPress={() => handleTagPress('Mielenkiinto')} />
+                <TagButton
+                    iconName="mushroom"
+                    onPress={() => handleTagPress('Sieni')}
+                    backgroundColor="#F2C94C"
+                    iconColor="#2A2A2A"
+                    buttonSize={84}
+                />
       </View>
       {/* Kehityskäyössä olleet kannan puhdistus painikkeet */}
     </View>
@@ -390,6 +414,50 @@ const styles = StyleSheet.create({
         bottom: 15,
         zIndex: 50,
     },
+    zoomControlsWrapper: {
+        position: 'absolute',
+        right: 10,
+        top: '35%',
+        zIndex: 60,
+        alignItems: 'center',
+        gap: 8,
+    },
+    zoomButton: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: 'rgba(255,255,255,0.92)',
+        borderWidth: 1,
+        borderColor: '#d0d0d0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.18,
+        shadowRadius: 2,
+        elevation: 3,
+    },
+    zoomButtonText: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#1f1f1f',
+        lineHeight: 30,
+    },
+    zoomBadge: {
+        minWidth: 44,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.92)',
+        borderWidth: 1,
+        borderColor: '#d0d0d0',
+        alignItems: 'center',
+    },
+    zoomBadgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#1f1f1f',
+    },
     filterBtn: {
         backgroundColor: '#eee',
         padding: 4,
@@ -404,7 +472,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
+        paddingVertical: 16,
+        paddingHorizontal: 20,
     },
     indicatorWrapper: {
         width: '100%',
