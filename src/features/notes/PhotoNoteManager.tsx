@@ -8,8 +8,9 @@ import ListTag from './ListTag';
 import { Host } from 'react-native-portalize';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/userAppSelector';
-import { initializeDb, fetchItems, deleteItem, updateItem } from './sqliteSlice';
-import { deleteLocation, deleteLocationDb } from '../map/locationSlice';
+import { initializeDb, fetchItems, deleteItem, updateItem, addItem } from './sqliteSlice';
+import { deleteLocation, deleteLocationDb, updateLocation as updateLocationState } from '../map/locationSlice';
+import { updateLocation as updateLocationDb } from '../../database/queries/locations';
 import {
     setModalVisible,
     setNoteModalVisible,
@@ -98,6 +99,9 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
 
     //const [title, setTitle] = useState(prefilledTitle || '');
     const [noteFocused, setNoteFocused] = useState(false);
+    const [renameModalVisible, setRenameModalVisible] = useState(false);
+    const [renameText, setRenameText] = useState('');
+    const [renameEntry, setRenameEntry] = useState<NoteListEntry | null>(null);
     //const [editNoteMode] = useState(false);
     //const [inputFocused, setInputFocused] = useState(false);
 
@@ -130,7 +134,7 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                 id: `loc-${location.id}`,
                 locationId: location.id,
                 noteId: note?.id ?? null,
-                name: note?.name?.trim() ? note.name : `Tagi ${formatTagTimestamp(locationTimestamp)}`,
+                name: note?.name?.trim() ? note.name : `${formatTagTimestamp(locationTimestamp)} Tagi`,
                 note: note?.note || '',
                 lastUpdated: note?.lastUpdated || note?.createdAt || locationTimestamp,
                 tagType: location.tagType,
@@ -235,7 +239,10 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                             }
                             dispatch(deleteLocation(entry.locationId));
                             await dispatch(deleteLocationDb(entry.locationId));
-                            loadItems();
+                            await loadItems();
+                            const { fetchLocations } = await import('../../database/queries/locations');
+                            const refreshedLocations = await fetchLocations();
+                            dispatch({ type: 'location/setLocations', payload: refreshedLocations });
                         } catch (error) {
                             console.error('Error deleting tag:', error);
                         }
@@ -265,6 +272,53 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                 .catch((error) => console.error('Error updating note:', error));
         } else {
             console.error('Error: Missing selectedPhotoId or selectedPhotoNote');
+        }
+    };
+
+    const handleOpenRename = (entry: NoteListEntry) => {
+        setRenameEntry(entry);
+        setRenameText(entry.name || '');
+        setRenameModalVisible(true);
+    };
+
+    const handleSaveRename = async () => {
+        const nextName = renameText.trim();
+        if (!renameEntry) {
+            return;
+        }
+        if (!nextName) {
+            Alert.alert(t('alertEmptyTitle', 'Nimi ei voi olla tyhjä'));
+            return;
+        }
+
+        try {
+            if (renameEntry.noteId) {
+                const existingNote = notes.find((n: any) => n.id === renameEntry.noteId);
+                await dispatch(updateItem({
+                    id: renameEntry.noteId,
+                    note: existingNote?.note || '',
+                    name: nextName,
+                })).unwrap();
+            } else {
+                const created = await dispatch(addItem({
+                    name: nextName,
+                    note: '',
+                    photoFileName: '',
+                    photoUrl: '',
+                    locationId: renameEntry.locationId,
+                })).unwrap() as { id: number };
+
+                await updateLocationDb(renameEntry.locationId, created.id);
+                dispatch(updateLocationState({ id: renameEntry.locationId, noteId: created.id }));
+            }
+
+            await loadItems();
+            setRenameModalVisible(false);
+            setRenameEntry(null);
+            setRenameText('');
+        } catch (error) {
+            console.error('Error renaming tag:', error);
+            Alert.alert(t('error', 'Virhe'), t('saveError', 'Tallennus epäonnistui'));
         }
     };
 
@@ -320,6 +374,9 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                             <ListTag item={item} locations={locations} isDark={isDark} userLocation={userLocation} onRequestLocation={getCurrentLocation} />
                             <Text style={[styles.notetitle, isDark ? styles.titleDark : styles.titleLight, styles.titleMoreSpace]}>{item.name}</Text>
                             <View style={styles.icons}>
+                                <TouchableRipple style={styles.iconButton} onPress={() => handleOpenRename(item)}>
+                                    <FontAwesome name="pencil" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
+                                </TouchableRipple>
                                 <TouchableRipple style={styles.iconButton} onPress={() => handleGotoLocation(item)}>
                                     <FontAwesome name="map" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
                                 </TouchableRipple>
@@ -422,6 +479,46 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                                 style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
                                 iconColor={isDark ? '#fffbe6' : '#fff'}
                             />
+                        </View>
+                    </Card>
+                </Modal>
+                <Modal
+                    visible={renameModalVisible}
+                    onDismiss={() => setRenameModalVisible(false)}
+                    contentContainerStyle={[styles.modalContainer]}
+                >
+                    <Card style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
+                        <View style={styles.renameModalContent}>
+                            <Text style={[styles.modalTitle, isDark ? styles.titleDark : styles.titleLight]}>
+                                {t('renameTag', 'Nimeä tagi uudelleen')}
+                            </Text>
+                            <TextInput
+                                style={[
+                                    styles.renameInput,
+                                    isDark ? styles.textInputDark : styles.textInputLight,
+                                ]}
+                                value={renameText}
+                                onChangeText={setRenameText}
+                                placeholder={t('noteTitlePlaceholder', 'Otsikko...')}
+                                placeholderTextColor={isDark ? '#bbb' : '#888'}
+                                autoFocus={true}
+                            />
+                            <View style={styles.buttonRow}>
+                                <IconButton
+                                    icon="close"
+                                    mode="outlined"
+                                    onPress={() => setRenameModalVisible(false)}
+                                    style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
+                                    iconColor={isDark ? '#fffbe6' : '#fff'}
+                                />
+                                <IconButton
+                                    icon="check"
+                                    mode="contained"
+                                    onPress={handleSaveRename}
+                                    style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
+                                    iconColor={isDark ? '#fffbe6' : '#fff'}
+                                />
+                            </View>
                         </View>
                     </Card>
                 </Modal>
@@ -532,7 +629,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         alignItems: 'center',
         gap: 8,
-        width: 80,
+        width: 116,
         marginLeft: 2,
     },
     iconButton: {
@@ -555,6 +652,16 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         marginBottom: 10,
+    },
+    renameModalContent: {
+        padding: 16,
+    },
+    renameInput: {
+        height: 46,
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingHorizontal: 10,
+        marginBottom: 12,
     },
     modalImage: {
         width: '100%',
