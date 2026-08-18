@@ -5,12 +5,15 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 interface TagButtonProps {
     iconName: string;
     onPress: () => void;
+    backgroundColor?: string;
+    iconColor?: string;
+    buttonSize?: number;
 }
 
-const TagButton: React.FC<TagButtonProps> = ({ iconName, onPress }) => {
+const TagButton: React.FC<TagButtonProps> = ({ iconName, onPress, backgroundColor = '#4CAF50', iconColor = '#ffffffff', buttonSize = 60 }) => {
     return (
-        <TouchableOpacity style={styles.button} onPress={onPress}>
-            <Icon name={iconName} size={30} color="#ffffffff" />
+        <TouchableOpacity style={[styles.button, { backgroundColor, width: buttonSize, height: buttonSize, borderRadius: buttonSize / 2 }]} onPress={onPress}>
+            <Icon name={iconName} size={Math.round(buttonSize * 0.5)} color={iconColor} />
         </TouchableOpacity>
     );
 };
@@ -18,8 +21,6 @@ const TagButton: React.FC<TagButtonProps> = ({ iconName, onPress }) => {
 const styles = StyleSheet.create({
     button: {
         backgroundColor: '#4CAF50',
-        padding: 15,
-        borderRadius: 50, // Pyöreä painike
         marginHorizontal: 10,
         justifyContent: 'center',
         alignItems: 'center',

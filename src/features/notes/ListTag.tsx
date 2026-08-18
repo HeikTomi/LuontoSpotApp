@@ -34,17 +34,25 @@ const ListTag: React.FC<ListTagProps> = ({ item, locations, isDark, userLocation
     const [bubblePos, setBubblePos] = useState<{x: number, y: number} | null>(null);
     const iconRef = useRef<View>(null);
     const { t } = useTranslation();
-    const location = locations.find((l: any) => l.noteId === item.id);
+    const location = item.locationId
+        ? locations.find((l: any) => l.id === item.locationId)
+        : locations.find((l: any) => l.noteId === item.id);
 
     let iconName = 'map-marker';
+    let iconColor = isDark ? '#925821ff' : '#4CAF50';
+    let isMushroomTag = false;
     if (location && location.tagType) {
         if (location.tagType === 'Mielenkiinto') { iconName = 'star'; }
         else if (location.tagType === 'Marja') { iconName = 'fruit-grapes'; }
-        else if (location.tagType === 'Sieni') { iconName = 'mushroom'; }
+        else if (location.tagType === 'Sieni') {
+            iconName = 'mushroom';
+            iconColor = '#F2C94C';
+            isMushroomTag = true;
+        }
     }
 
     // Muokkaus päivämäärä
-    let date = item.lastUpdated;
+    let date = item.lastUpdated || location?.lastUpdated;
     console.log('ListTag item:', item);
     console.log('ListTag date value:', date);
     // Try to parse ISO string, fallback to raw value
@@ -94,11 +102,15 @@ const ListTag: React.FC<ListTagProps> = ({ item, locations, isDark, userLocation
     return (
         <View style={styles.relativeContainer}>
             <TouchableRipple style={styles.iconButton} onPress={handleIconPress}>
-                <View ref={iconRef} collapsable={false}>
+                <View
+                    ref={iconRef}
+                    collapsable={false}
+                    style={isMushroomTag ? [styles.mushroomIconBadge, isDark ? styles.mushroomIconBadgeDark : styles.mushroomIconBadgeLight] : undefined}
+                >
                     <Icon
                         name={iconName}
                         size={18}
-                        style={isDark ? styles.iconCameraDark : styles.iconCameraLight}
+                        color={iconColor}
                     />
                 </View>
             </TouchableRipple>
@@ -134,6 +146,25 @@ const styles = StyleSheet.create({
     },
     iconCameraLight: {
         color: '#4CAF50',
+    },
+    mushroomIconBadge: {
+        borderRadius: 12,
+        paddingHorizontal: 3,
+        paddingVertical: 2,
+        borderWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    mushroomIconBadgeDark: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(255,255,255,0.5)',
+    },
+    mushroomIconBadgeLight: {
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderColor: 'rgba(0,0,0,0.18)',
     },
     bubble: {
         minWidth: 120,

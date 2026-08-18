@@ -4,21 +4,17 @@ import Geolocation from '@react-native-community/geolocation';
 import { StyleSheet, FlatList, Alert, Image, View, TextInput, useColorScheme, Dimensions } from 'react-native';
 import { Surface, Text, TouchableRipple, Modal, IconButton, Card } from 'react-native-paper';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import ListTag from './ListTag';
 import { Host } from 'react-native-portalize';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/userAppSelector';
-import { initializeDb, fetchItems, deleteItem, updateItem } from './sqliteSlice';
+import { initializeDb, fetchItems, deleteItem, updateItem, addItem } from './sqliteSlice';
+import { deleteLocation, deleteLocationDb, updateLocation as updateLocationState } from '../map/locationSlice';
+import { updateLocation as updateLocationDb } from '../../database/queries/locations';
 import {
-    //setNote,
     setModalVisible,
-    setSelectedPhotoTitle,
-    setSelectedPhotoNote,
     setNoteModalVisible,
     updateSelectedPhotoNote,
-    setSelectedPhotoId,
-    setSelectedPhotoUrl,
 } from './photoNoteSlice';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -32,6 +28,19 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'PhotoNoteMa
 
 const windowWidth = Dimensions.get('window').width;
 const windowHeight = 300;
+
+interface NoteListEntry {
+    id: string;
+    locationId: number;
+    noteId: number | null;
+    name: string;
+    note: string;
+    lastUpdated: string;
+    tagType: string;
+    latitude: number;
+    longitude: number;
+    hasNote: boolean;
+}
 
 export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) => void }> = ({ setAutoFollowOnStart }) => {
 
@@ -59,26 +68,11 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
             }
         };
     }, []);
-    const fetchNoteLocation = (noteId: number) => {
-        console.log('DEBUG notes:', notes);
-        console.log('DEBUG locations:', locations);
-        const note = notes.find((n: any) => n.id === noteId);
-        if (!note) {
-            console.log('DEBUG: note missing');
-            return null;
-        }
-        // locationin haku noteId:llä
-        const location = locations.find((l: any) => l.noteId === note.id);
-        console.log('DEBUG location:', location);
-        if (!location) {
-            console.log('DEBUG: location not found');
-            return null;
-        }
-        return {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            heading: null,
-        };
+    const formatTagTimestamp = (value?: string) => {
+        if (!value) { return '-'; }
+        const parsed = new Date(value);
+        if (isNaN(parsed.getTime())) { return value; }
+        return parsed.toLocaleString('fi-FI');
     };
 
         // Sorttaus
@@ -105,21 +99,15 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
 
     //const [title, setTitle] = useState(prefilledTitle || '');
     const [noteFocused, setNoteFocused] = useState(false);
+    const [renameModalVisible, setRenameModalVisible] = useState(false);
+    const [renameText, setRenameText] = useState('');
+    const [renameEntry, setRenameEntry] = useState<NoteListEntry | null>(null);
     //const [editNoteMode] = useState(false);
     //const [inputFocused, setInputFocused] = useState(false);
 
     const { t } = useTranslation();
     const dispatch = useAppDispatch();
     const navigation = useNavigation<NavigationProp>();
-    const items = useAppSelector((state) => state.sqlite.items);
-
-    // Filter-tilat
-    const [showInterest, setShowInterest] = useState(true);
-    const [showBerry, setShowBerry] = useState(true);
-    const [showMushroom, setShowMushroom] = useState(true);
-
-    // Filter-ikonien tyylit
-    const filterIconSize = 20;
 
     // Hae käyttäjän sijainti pyynnöstä (esim. Picker tai ListTag)
     const getCurrentLocation = () => {
@@ -137,38 +125,43 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
         );
     };
 
-    // Suodatettu ja lajiteltu lista
-    let filteredItems = items.filter((item: any) => {
-        const location = locations.find((l: any) => l.noteId === item.id);
-        if (!location || !location.tagType) { return true; }
-        if (location.tagType === 'Mielenkiinto' && showInterest) { return true; }
-        if (location.tagType === 'Marja' && showBerry) { return true; }
-        if (location.tagType === 'Sieni' && showMushroom) { return true; }
-        return false;
-    });
+    // Muodosta lista suoraan tageista, jotta myös ilman muistiinpanoa olevat tagit näkyvät.
+    let filteredItems: NoteListEntry[] = locations
+        .map((location: any) => {
+            const note = location.noteId ? notes.find((n: any) => n.id === location.noteId) : null;
+            const locationTimestamp = location.lastUpdated || '';
+            return {
+                id: `loc-${location.id}`,
+                locationId: location.id,
+                noteId: note?.id ?? null,
+                name: note?.name?.trim() ? note.name : `${formatTagTimestamp(locationTimestamp)} Tagi`,
+                note: note?.note || '',
+                lastUpdated: note?.lastUpdated || note?.createdAt || locationTimestamp,
+                tagType: location.tagType,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                hasNote: !!note,
+            };
+        });
+
     // Sorttaus
     filteredItems = filteredItems.slice();
     if (sortType === 'distance' && userLocation) {
         filteredItems.sort((a, b) => {
-            const locA = locations.find((l: any) => l.noteId === a.id);
-            const locB = locations.find((l: any) => l.noteId === b.id);
-            if (!locA || !locB) {
-                return 0;
-            }
-            const distA = getDistance(userLocation.latitude, userLocation.longitude, locA.latitude, locA.longitude);
-            const distB = getDistance(userLocation.latitude, userLocation.longitude, locB.latitude, locB.longitude);
+            const distA = getDistance(userLocation.latitude, userLocation.longitude, a.latitude, a.longitude);
+            const distB = getDistance(userLocation.latitude, userLocation.longitude, b.latitude, b.longitude);
             return distA - distB;
         });
     } else if (sortType === 'newest') {
         filteredItems.sort((a, b) => {
-            const dateA = new Date(a.lastUpdated || a.createdAt || 0).getTime();
-            const dateB = new Date(b.lastUpdated || b.createdAt || 0).getTime();
+            const dateA = new Date(a.lastUpdated || 0).getTime();
+            const dateB = new Date(b.lastUpdated || 0).getTime();
             return dateB - dateA;
         });
     } else if (sortType === 'oldest') {
         filteredItems.sort((a, b) => {
-            const dateA = new Date(a.lastUpdated || a.createdAt || 0).getTime();
-            const dateB = new Date(b.lastUpdated || b.createdAt || 0).getTime();
+            const dateA = new Date(a.lastUpdated || 0).getTime();
+            const dateB = new Date(b.lastUpdated || 0).getTime();
             return dateA - dateB;
         });
     }
@@ -186,7 +179,6 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
     // Pickerin dynaamiset värit (isDark jälkeen)
     const pickerTextColor = isDark ? '#fff' : '#222';
     //const pickerBgColor = isDark ? '#222' : '#fff';
-    const pickerBorderColor = isDark ? '#444' : '#bbb';
 
     // Lataa tietokannan tiedot
     const loadItems = useCallback(() => {
@@ -230,23 +222,32 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
     */
 
     // Ota valokuva ja päivitä tietokantaan
-    const handleTakePhoto = (id: number) => {
-        // @ts-ignore: React Navigation param typing workaround
-        navigation.navigate('Camera', { id });
-    };
-
-    // Poista tietue tietokannasta
-    const handleDeletePhotoNote = (id: number) => {
+    // Poista tagi (sekä mahdollinen muistiinpano)
+    const handleDeleteTag = (entry: NoteListEntry) => {
         Alert.alert(
             t('deleteTitle'),
             t('deleteText'),
             [
                 { text: t('cancel'), style: 'cancel' },
-                { text: t('deleteLabel'), style: 'destructive', onPress: () => {
-                    dispatch(deleteItem(id))
-                        .then(() => loadItems())
-                        .catch((error) => console.error('Error deleting photo note:', error));
-                }},
+                {
+                    text: t('deleteLabel'),
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            if (entry.noteId) {
+                                await dispatch(deleteItem(entry.noteId));
+                            }
+                            dispatch(deleteLocation(entry.locationId));
+                            await dispatch(deleteLocationDb(entry.locationId));
+                            await loadItems();
+                            const { fetchLocations } = await import('../../database/queries/locations');
+                            const refreshedLocations = await fetchLocations();
+                            dispatch({ type: 'location/setLocations', payload: refreshedLocations });
+                        } catch (error) {
+                            console.error('Error deleting tag:', error);
+                        }
+                    },
+                },
             ],
             { cancelable: true }
         );
@@ -274,9 +275,60 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
         }
     };
 
+    const handleOpenRename = (entry: NoteListEntry) => {
+        setRenameEntry(entry);
+        setRenameText(entry.name || '');
+        setRenameModalVisible(true);
+    };
+
+    const handleSaveRename = async () => {
+        const nextName = renameText.trim();
+        if (!renameEntry) {
+            return;
+        }
+        if (!nextName) {
+            Alert.alert(t('alertEmptyTitle', 'Nimi ei voi olla tyhjä'));
+            return;
+        }
+
+        try {
+            if (renameEntry.noteId) {
+                const existingNote = notes.find((n: any) => n.id === renameEntry.noteId);
+                await dispatch(updateItem({
+                    id: renameEntry.noteId,
+                    note: existingNote?.note || '',
+                    name: nextName,
+                })).unwrap();
+            } else {
+                const created = await dispatch(addItem({
+                    name: nextName,
+                    note: '',
+                    photoFileName: '',
+                    photoUrl: '',
+                    locationId: renameEntry.locationId,
+                })).unwrap() as { id: number };
+
+                await updateLocationDb(renameEntry.locationId, created.id);
+                dispatch(updateLocationState({ id: renameEntry.locationId, noteId: created.id }));
+            }
+
+            await loadItems();
+            setRenameModalVisible(false);
+            setRenameEntry(null);
+            setRenameText('');
+        } catch (error) {
+            console.error('Error renaming tag:', error);
+            Alert.alert(t('error', 'Virhe'), t('saveError', 'Tallennus epäonnistui'));
+        }
+    };
+
     // Avaa valokuva modaalissa
-    const handleGotoLocation = (noteId: number) => {
-        const location = fetchNoteLocation(noteId);
+    const handleGotoLocation = (entry: NoteListEntry) => {
+        const location = {
+            latitude: entry.latitude,
+            longitude: entry.longitude,
+            heading: null,
+        };
         if (setAutoFollowOnStart) {
             setAutoFollowOnStart(false);
         }
@@ -288,15 +340,6 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
     };
 
     // Avaa muistiinpano modaalissa
-    const handleOpenNote = (photoId: number, photoTitle: string, photoNote: string) => {
-        const noteObj = notes.find((n: any) => n.id === photoId);
-        console.log(notes);
-        dispatch(setSelectedPhotoId(photoId));
-        dispatch(setSelectedPhotoTitle(photoTitle));
-        dispatch(setSelectedPhotoNote(photoNote));
-        dispatch(setSelectedPhotoUrl(noteObj?.photoUrl || ''));
-        dispatch(setNoteModalVisible(true));
-    };
     return (
         <Host>
             <Surface style={[styles.container, isDark ? styles.surfaceDark : styles.surfaceLight]}>
@@ -307,14 +350,7 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                 <View style={styles.filterHeaderRow}>
                     <Picker
                         selectedValue={sortType}
-                        style={{
-                            width: 140,
-                            marginLeft: 8,
-                            borderRadius: 8,
-                            height: 36,
-                            borderWidth: 1,
-                            borderColor: pickerBorderColor,
-                        }}
+                        style={[styles.sortPicker, isDark ? styles.sortPickerDark : styles.sortPickerLight]}
                         dropdownIconColor={pickerTextColor}
                         onValueChange={(itemValue: 'distance' | 'newest' | 'oldest') => {
                             setSortType(itemValue);
@@ -329,36 +365,22 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                         <Picker.Item label={t('sortOldest', 'Vanhin ensin')} value="oldest" color={pickerTextColor} />
                         <Picker.Item label={t('sortNearest', 'Lähimmät ensin')} value="distance" color={pickerTextColor} />
                     </Picker>
-                    <View style={[styles.filterContainer, isDark && styles.filterContainerDark]}>
-                        <TouchableRipple onPress={() => setShowMushroom((v) => !v)} style={[styles.filterButton, isDark && styles.filterButtonDark]}>
-                            <Icon name="mushroom" size={filterIconSize} color={showMushroom ? (isDark ? '#FFD39B' : '#8D4F2A') : (isDark ? '#888' : '#bbb')} style={showMushroom ? styles.filterIconActive : styles.filterIconInactive} />
-                        </TouchableRipple>
-                        <TouchableRipple onPress={() => setShowBerry((v) => !v)} style={[styles.filterButton, isDark && styles.filterButtonDark]}>
-                            <Icon name="fruit-grapes" size={filterIconSize} color={showBerry ? (isDark ? '#CBA3FF' : '#6A1B9A') : (isDark ? '#888' : '#bbb')} style={showBerry ? styles.filterIconActive : styles.filterIconInactive} />
-                        </TouchableRipple>
-                        <TouchableRipple onPress={() => setShowInterest((v) => !v)} style={[styles.filterButton, isDark && styles.filterButtonDark]}>
-                            <Icon name="star" size={filterIconSize} color={showInterest ? (isDark ? '#FFFACD' : '#FFD700') : (isDark ? '#888' : '#bbb')} style={showInterest ? styles.filterIconActive : styles.filterIconInactive} />
-                        </TouchableRipple>
-                    </View>
                 </View>
                 <FlatList
                     data={filteredItems}
-                    keyExtractor={(item) => item.id.toString()}
+                    keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                         <Surface style={[styles.listItem, isDark ? styles.listItemDark : styles.listItemLight]}>
                             <ListTag item={item} locations={locations} isDark={isDark} userLocation={userLocation} onRequestLocation={getCurrentLocation} />
                             <Text style={[styles.notetitle, isDark ? styles.titleDark : styles.titleLight, styles.titleMoreSpace]}>{item.name}</Text>
                             <View style={styles.icons}>
-                                <TouchableRipple style={styles.iconButton} onPress={() => handleTakePhoto(item.id)}>
-                                    <FontAwesome name="camera" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
-                                </TouchableRipple>
-                                <TouchableRipple style={styles.iconButton} onPress={() => handleGotoLocation(item.id)}>
-                                    <FontAwesome name="map" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
-                                </TouchableRipple>
-                                <TouchableRipple style={styles.iconButton} onPress={() => handleOpenNote(item.id, item.name, item.note)}>
+                                <TouchableRipple style={styles.iconButton} onPress={() => handleOpenRename(item)}>
                                     <FontAwesome name="pencil" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
                                 </TouchableRipple>
-                                <TouchableRipple style={styles.iconButton} onPress={() => handleDeletePhotoNote(item.id)}>
+                                <TouchableRipple style={styles.iconButton} onPress={() => handleGotoLocation(item)}>
+                                    <FontAwesome name="map" size={15} style={isDark ? styles.iconCameraDark : styles.iconCameraLight} />
+                                </TouchableRipple>
+                                <TouchableRipple style={styles.iconButton} onPress={() => handleDeleteTag(item)}>
                                     <FontAwesome name="trash" size={15} style={isDark ? styles.iconTrashDark : styles.iconTrashLight} />
                                 </TouchableRipple>
                             </View>
@@ -460,6 +482,46 @@ export const PhotoNoteManager: React.FC<{ setAutoFollowOnStart?: (val: boolean) 
                         </View>
                     </Card>
                 </Modal>
+                <Modal
+                    visible={renameModalVisible}
+                    onDismiss={() => setRenameModalVisible(false)}
+                    contentContainerStyle={[styles.modalContainer]}
+                >
+                    <Card style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
+                        <View style={styles.renameModalContent}>
+                            <Text style={[styles.modalTitle, isDark ? styles.titleDark : styles.titleLight]}>
+                                {t('renameTag', 'Nimeä tagi uudelleen')}
+                            </Text>
+                            <TextInput
+                                style={[
+                                    styles.renameInput,
+                                    isDark ? styles.textInputDark : styles.textInputLight,
+                                ]}
+                                value={renameText}
+                                onChangeText={setRenameText}
+                                placeholder={t('noteTitlePlaceholder', 'Otsikko...')}
+                                placeholderTextColor={isDark ? '#bbb' : '#888'}
+                                autoFocus={true}
+                            />
+                            <View style={styles.buttonRow}>
+                                <IconButton
+                                    icon="close"
+                                    mode="outlined"
+                                    onPress={() => setRenameModalVisible(false)}
+                                    style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
+                                    iconColor={isDark ? '#fffbe6' : '#fff'}
+                                />
+                                <IconButton
+                                    icon="check"
+                                    mode="contained"
+                                    onPress={handleSaveRename}
+                                    style={[styles.modalButton, isDark ? styles.buttonDark : styles.buttonLight]}
+                                    iconColor={isDark ? '#fffbe6' : '#fff'}
+                                />
+                            </View>
+                        </View>
+                    </Card>
+                </Modal>
             </Surface>
         </Host>
     );
@@ -484,6 +546,19 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 8,
+    },
+    sortPicker: {
+        width: 140,
+        marginLeft: 8,
+        borderRadius: 8,
+        height: 36,
+        borderWidth: 1,
+    },
+    sortPickerDark: {
+        borderColor: '#444',
+    },
+    sortPickerLight: {
+        borderColor: '#bbb',
     },
     filterContainer: {
         flexDirection: 'row',
@@ -554,7 +629,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         alignItems: 'center',
         gap: 8,
-        width: 80,
+        width: 116,
         marginLeft: 2,
     },
     iconButton: {
@@ -577,6 +652,16 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         marginBottom: 10,
+    },
+    renameModalContent: {
+        padding: 16,
+    },
+    renameInput: {
+        height: 46,
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingHorizontal: 10,
+        marginBottom: 12,
     },
     modalImage: {
         width: '100%',

@@ -12,11 +12,16 @@ const autoFollowSlice = createSlice({
   name: 'autoFollow',
   initialState,
   reducers: {
-    setAutoFollow: (state, action: PayloadAction<boolean>) => {
+    setAutoFollow: (
+      state,
+      action: PayloadAction<boolean>
+    ) => {
       state.enabled = action.payload;
     },
   },
 });
 
-export const { setAutoFollow } = autoFollowSlice.actions;
+export const { setAutoFollow } =
+  autoFollowSlice.actions;
+
 export default autoFollowSlice.reducer;

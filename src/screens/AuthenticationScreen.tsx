@@ -1,7 +1,7 @@
 import React from 'react';
 import { Authentication } from '../features/auth/Authentication';
 import { useNavigation } from '@react-navigation/native';
-import { LanguageSelector } from '../components/LanguageSelector';
+//import { LanguageSelector } from '../components/LanguageSelector';
 import { AuthenticationScreenNavigationProp } from '../../App';
 import { View, StyleSheet } from 'react-native';
 
@@ -24,10 +24,11 @@ export const AuthenticationScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            {/* Kielivalinta */}
+            {/* Kielivalinta
             <View style={styles.languageSelector}>
                 <LanguageSelector />
             </View>
+            */}
 
             {/* Authentication-komponentti */}
             <Authentication
